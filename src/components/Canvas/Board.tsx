@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   Canvas as FabricCanvas, 
@@ -246,7 +245,7 @@ const Board: React.FC<BoardProps> = ({
         fabricRef.current.add(textbox);
       }
     } else if (state.tool === 'eraser') {
-      const target = fabricRef.current.findTarget(opt.e as MouseEvent, false);
+      const target = fabricRef.current.findTarget(opt.e as MouseEvent);
       if (target && (target as ExtendedFabricObject).data?.id) {
         const elementId = (target as ExtendedFabricObject).data!.id;
         removeElement(elementId);
