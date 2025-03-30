@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   Canvas as FabricCanvas, 
@@ -37,7 +36,6 @@ interface BoardProps {
   };
 }
 
-// Extend FabricObject to include custom properties
 interface ExtendedFabricObject extends FabricObject {
   data?: {
     id: string;
@@ -61,11 +59,9 @@ const Board: React.FC<BoardProps> = ({
   const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const userId = useRef(uuidv4()).current;
 
-  // Initialize canvas on mount
   useEffect(() => {
     if (!canvasRef.current) return;
 
-    // Create fabric canvas instance
     const canvas = new FabricCanvas(canvasRef.current, {
       width: canvasSize.width,
       height: canvasSize.height,
@@ -76,7 +72,6 @@ const Board: React.FC<BoardProps> = ({
 
     fabricRef.current = canvas;
 
-    // Set up event listeners
     canvas.on('mouse:down', handleMouseDown);
     canvas.on('mouse:move', handleMouseMove);
     canvas.on('mouse:up', handleMouseUp);
@@ -85,7 +80,6 @@ const Board: React.FC<BoardProps> = ({
     canvas.on('selection:cleared', handleSelectionCleared);
     canvas.on('object:modified', handleObjectModified);
 
-    // Handle window resize
     const handleResize = () => {
       setCanvasSize({ width: window.innerWidth, height: window.innerHeight });
       canvas.setDimensions({ width: window.innerWidth, height: window.innerHeight });
@@ -94,14 +88,12 @@ const Board: React.FC<BoardProps> = ({
 
     window.addEventListener('resize', handleResize);
 
-    // Clean up
     return () => {
       window.removeEventListener('resize', handleResize);
       canvas.dispose();
     };
   }, []);
 
-  // Update canvas properties when tool changes
   useEffect(() => {
     if (!fabricRef.current) return;
     
@@ -113,7 +105,6 @@ const Board: React.FC<BoardProps> = ({
       fabricRef.current.freeDrawingBrush.width = state.strokeWidth;
     }
     
-    // Change cursor based on tool
     if (state.tool === 'hand') {
       fabricRef.current.defaultCursor = 'grab';
       fabricRef.current.hoverCursor = 'grab';
@@ -127,7 +118,6 @@ const Board: React.FC<BoardProps> = ({
     fabricRef.current.renderAll();
   }, [state.tool, state.color, state.strokeWidth]);
 
-  // Track mouse for collaboration
   const handleMouseMove = useCallback((opt: TPointerEventInfo) => {
     if (!fabricRef.current || !opt.pointer) return;
 
@@ -137,7 +127,6 @@ const Board: React.FC<BoardProps> = ({
     
     if (isDrawingRef.current && currentElementRef.current) {
       if (state.tool === 'pencil') {
-        // Pencil drawing is handled by fabric.js
       } else if (['line', 'arrow'].includes(state.tool)) {
         const obj = fabricRef.current.getObjects().find(
           obj => (obj as ExtendedFabricObject).data?.id === currentElementRef.current
@@ -190,7 +179,7 @@ const Board: React.FC<BoardProps> = ({
         state.strokeWidth
       );
       
-      const newElement = addElement(element);
+      const newElement = addElement(element as Partial<CanvasElement>);
       currentElementRef.current = newElement.id;
       
       if (state.tool === 'rectangle') {
@@ -207,7 +196,6 @@ const Board: React.FC<BoardProps> = ({
         });
         fabricRef.current.add(rect);
       } else if (state.tool === 'diamond') {
-        // For diamond, we'll use a polygon with 4 points
         const rect = new Rect({
           left: x,
           top: y,
@@ -216,7 +204,7 @@ const Board: React.FC<BoardProps> = ({
           fill: element.fill,
           stroke: element.stroke,
           strokeWidth: element.strokeWidth,
-          angle: 45, // Rotate 45 degrees to make it a diamond
+          angle: 45,
           data: { id: newElement.id },
           selectable: false
         });
@@ -243,7 +231,7 @@ const Board: React.FC<BoardProps> = ({
         });
         fabricRef.current.add(line);
       } else if (state.tool === 'text') {
-        const fontSize = element.fontSize || 18;
+        const fontSize = (element as any).fontSize || 18;
         const textbox = new Textbox('Click to edit', {
           left: x,
           top: y,
@@ -278,7 +266,6 @@ const Board: React.FC<BoardProps> = ({
       if (obj) {
         obj.set({ selectable: state.tool === 'select' });
         
-        // Broadcast the created element
         const elementType = state.tool as Tool;
         const element: CanvasElement = {
           id: obj.data!.id,
