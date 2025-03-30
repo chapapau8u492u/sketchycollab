@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   Canvas as FabricCanvas, 
@@ -81,7 +80,6 @@ const Board: React.FC<BoardProps> = ({
     canvas.on('selection:updated', handleSelection);
     canvas.on('selection:cleared', handleSelectionCleared);
     
-    // Fix: Changed the event binding to use the correct type
     canvas.on('object:modified', (opt) => handleObjectModified(opt));
 
     const handleResize = () => {
@@ -642,6 +640,40 @@ const Board: React.FC<BoardProps> = ({
     }
   };
 
+  const updateElementInDatabase = async (elementId: string, changes: Partial<CanvasElement>) => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('board_objects')
+        .select('data')
+        .eq('data->>id', elementId)
+        .single();
+        
+      if (fetchError) {
+        console.error('Error fetching element for update:', fetchError);
+        return;
+      }
+      
+      if (data && data.data && typeof data.data === 'object') {
+        const updatedData = { ...data.data as object, ...changes };
+        
+        const { error } = await supabase
+          .from('board_objects')
+          .update({ 
+            data: updatedData,
+            updated_by: userId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('data->>id', elementId);
+          
+        if (error) {
+          console.error('Error updating element in database:', error);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to update element in database:', err);
+    }
+  };
+
   const handleSelection = useCallback((opt: any) => {
     const selected = opt.selected;
     if (!selected || !selected.length) return;
@@ -656,7 +688,6 @@ const Board: React.FC<BoardProps> = ({
     selectElement(null);
   }, [selectElement]);
 
-  // Fixed the ModifiedEvent type signature
   const handleObjectModified = useCallback((opt: ModifiedEvent<any>) => {
     const target = opt.target;
     if (!target) return;
@@ -684,40 +715,6 @@ const Board: React.FC<BoardProps> = ({
     
     collaboration.broadcastUpdateElement(obj.data.id, changes);
   }, [updateElement, collaboration, state.roomId]);
-
-  const updateElementInDatabase = async (elementId: string, changes: Partial<CanvasElement>) => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('board_objects')
-        .select('data')
-        .eq('data->>id', elementId)
-        .single();
-        
-      if (fetchError) {
-        console.error('Error fetching element for update:', fetchError);
-        return;
-      }
-      
-      if (data && data.data) {
-        const updatedData = { ...data.data, ...changes };
-        
-        const { error } = await supabase
-          .from('board_objects')
-          .update({ 
-            data: updatedData,
-            updated_by: userId,
-            updated_at: new Date().toISOString()
-          })
-          .eq('data->>id', elementId);
-          
-        if (error) {
-          console.error('Error updating element in database:', error);
-        }
-      }
-    } catch (err) {
-      console.error('Failed to update element in database:', err);
-    }
-  };
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[url('/grid.svg')]">
