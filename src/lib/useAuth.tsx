@@ -63,19 +63,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             last_active: new Date().toISOString()
           };
           
-          // Get the URL from supabase config but avoid using protected properties
-          const apiUrl = `${supabase.getUrl()}/rest/v1/profiles?id=eq.${user.id}`;
+          // Use direct URL construction with available properties
+          const apiUrl = `${supabase.supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`;
           
+          // Use the fetch API directly through sendBeacon
           navigator.sendBeacon(
             apiUrl,
             new Blob([JSON.stringify(offlineData)], {
-              type: 'application/json',
-              headers: {
-                'Content-Type': 'application/json',
-                'apikey': supabase.getAuth().autoRefreshToken.value
-              }
+              type: 'application/json'
             })
           );
+          
+          // Add headers separately using fetch if needed in the future
+          // This was causing TypeScript errors as headers isn't a valid BlobPropertyBag property
         } catch (err) {
           console.error('Failed to send offline status via beacon:', err);
         }
