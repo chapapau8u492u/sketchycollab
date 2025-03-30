@@ -2,6 +2,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Tool, AppState, CanvasElement } from './types';
 import { v4 as uuidv4 } from 'uuid';
+import { toast } from 'sonner';
 
 const defaultState: AppState = {
   elements: [],

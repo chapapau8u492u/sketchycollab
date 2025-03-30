@@ -1,6 +1,21 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Canvas as FabricCanvas, Object as FabricObject, Rect, Circle, Path, Line, Ellipse, Textbox, TEvent } from 'fabric';
+import { 
+  Canvas as FabricCanvas, 
+  Object as FabricObject, 
+  Rect, 
+  Circle, 
+  Path, 
+  Line, 
+  Ellipse, 
+  Textbox, 
+  TPointerEventInfo, 
+  TEvent,
+  TPointerEvent,
+  TBrushEventData,
+  ModifiedEvent,
+  ObjectEvents
+} from 'fabric';
 import { AppState, CanvasElement, Tool } from '@/lib/types';
 import { createDefaultElementForTool, isDrawingTool } from '@/lib/utils/drawing';
 import { toast } from "sonner";
@@ -113,10 +128,10 @@ const Board: React.FC<BoardProps> = ({
   }, [state.tool, state.color, state.strokeWidth]);
 
   // Track mouse for collaboration
-  const handleMouseMove = useCallback((e: TEvent) => {
-    if (!fabricRef.current || !e.pointer) return;
+  const handleMouseMove = useCallback((opt: TPointerEventInfo) => {
+    if (!fabricRef.current || !opt.pointer) return;
 
-    const { x, y } = e.pointer;
+    const { x, y } = opt.pointer;
     updateUserCursor(userId, x, y);
     collaboration.broadcastCursorPosition(x, y);
     
@@ -159,10 +174,10 @@ const Board: React.FC<BoardProps> = ({
     }
   }, [state.tool, updateUserCursor, userId, collaboration]);
 
-  const handleMouseDown = useCallback((e: TEvent) => {
-    if (!fabricRef.current || !e.pointer) return;
+  const handleMouseDown = useCallback((opt: TPointerEventInfo) => {
+    if (!fabricRef.current || !opt.pointer) return;
     
-    const { x, y } = e.pointer;
+    const { x, y } = opt.pointer;
     
     isDrawingRef.current = isDrawingTool(state.tool);
     
@@ -240,7 +255,7 @@ const Board: React.FC<BoardProps> = ({
         fabricRef.current.add(textbox);
       }
     } else if (state.tool === 'eraser') {
-      const target = fabricRef.current.findTarget(e.e as MouseEvent);
+      const target = fabricRef.current.findTarget(opt.e as MouseEvent);
       if (target && (target as ExtendedFabricObject).data?.id) {
         removeElement((target as ExtendedFabricObject).data!.id);
         fabricRef.current.remove(target);
@@ -283,10 +298,10 @@ const Board: React.FC<BoardProps> = ({
     }
   }, [state.tool, collaboration]);
 
-  const handleSelection = useCallback((e: TEvent) => {
-    if (!e.selected || !e.selected.length) return;
+  const handleSelection = useCallback((opt: { selected?: FabricObject[] }) => {
+    if (!opt.selected || !opt.selected.length) return;
     
-    const selected = e.selected[0] as ExtendedFabricObject;
+    const selected = opt.selected[0] as ExtendedFabricObject;
     if (selected.data?.id) {
       selectElement(selected.data.id);
     }
@@ -296,10 +311,10 @@ const Board: React.FC<BoardProps> = ({
     selectElement(null);
   }, [selectElement]);
 
-  const handleObjectModified = useCallback((e: TEvent) => {
-    if (!e.target) return;
+  const handleObjectModified = useCallback((opt: { target?: FabricObject }) => {
+    if (!opt.target) return;
     
-    const obj = e.target as ExtendedFabricObject;
+    const obj = opt.target as ExtendedFabricObject;
     if (!obj || !obj.data?.id) return;
     
     const changes = {
