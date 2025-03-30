@@ -7,6 +7,9 @@ import { toast } from 'sonner';
 // Update this variable to limit the frequency of status updates
 const ONLINE_STATUS_UPDATE_INTERVAL = 10000; // 10 seconds
 
+// Get the URL from the environment or fallback to the project ID
+const SUPABASE_URL = "https://ydptpwxhyhiuqrrzztrz.supabase.co";
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
@@ -63,8 +66,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             last_active: new Date().toISOString()
           };
           
-          // Use direct URL construction with available properties
-          const apiUrl = `${supabase.supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`;
+          // Use a direct approach with the known URL instead of accessing protected properties
+          const apiUrl = `${SUPABASE_URL}/rest/v1/profiles?id=eq.${user.id}`;
           
           // Use the fetch API directly through sendBeacon
           navigator.sendBeacon(
@@ -73,9 +76,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               type: 'application/json'
             })
           );
-          
-          // Add headers separately using fetch if needed in the future
-          // This was causing TypeScript errors as headers isn't a valid BlobPropertyBag property
         } catch (err) {
           console.error('Failed to send offline status via beacon:', err);
         }
