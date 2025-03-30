@@ -63,13 +63,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             last_active: new Date().toISOString()
           };
           
-          const apiUrl = `${supabase.supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`;
-          const apiKey = supabase.supabaseKey;
+          // Get the URL from supabase config but avoid using protected properties
+          const apiUrl = `${supabase.getUrl()}/rest/v1/profiles?id=eq.${user.id}`;
           
           navigator.sendBeacon(
             apiUrl,
             new Blob([JSON.stringify(offlineData)], {
-              type: 'application/json'
+              type: 'application/json',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': supabase.getAuth().autoRefreshToken.value
+              }
             })
           );
         } catch (err) {
