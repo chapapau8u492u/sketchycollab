@@ -4,6 +4,9 @@ import { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
+// Update this variable to limit the frequency of status updates
+const ONLINE_STATUS_UPDATE_INTERVAL = 10000; // 10 seconds
+
 interface AuthContextType {
   session: Session | null;
   user: User | null;
@@ -19,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastStatusUpdate, setLastStatusUpdate] = useState(0);
 
   useEffect(() => {
     // Set up auth state listener FIRST
@@ -52,7 +56,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Handle window unload to update offline status
     const handleUnload = () => {
       if (user) {
-        updateUserOnlineStatus(user.id, false);
+        // Use navigator.sendBeacon for more reliable offline status updates
+        try {
+          const offlineData = {
+            is_online: false,
+            last_active: new Date().toISOString()
+          };
+          
+          const apiUrl = `${supabase.supabaseUrl}/rest/v1/profiles?id=eq.${user.id}`;
+          const apiKey = supabase.supabaseKey;
+          
+          navigator.sendBeacon(
+            apiUrl,
+            new Blob([JSON.stringify(offlineData)], {
+              type: 'application/json'
+            })
+          );
+        } catch (err) {
+          console.error('Failed to send offline status via beacon:', err);
+        }
       }
     };
 
@@ -70,6 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const updateUserOnlineStatus = async (userId: string, isOnline: boolean) => {
+    const now = Date.now();
+    
+    // Throttle updates to prevent excessive API calls
+    if (now - lastStatusUpdate < ONLINE_STATUS_UPDATE_INTERVAL && isOnline) {
+      return;
+    }
+    
+    setLastStatusUpdate(now);
+    
     try {
       const { error } = await supabase
         .from('profiles')

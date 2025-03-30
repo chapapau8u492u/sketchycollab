@@ -1,5 +1,6 @@
 
 import { Tool, CanvasElement } from "../types";
+import { SpreadableObject } from "../custom-types";
 
 export const isDrawingTool = (tool: Tool): boolean => {
   return [
@@ -69,4 +70,12 @@ export const createDefaultElementForTool = (
     default:
       return defaultElement;
   }
+};
+
+// Helper function to safely spread objects
+export const safeSpread = (obj: any): SpreadableObject => {
+  if (!obj || typeof obj !== 'object') {
+    return {};
+  }
+  return obj as SpreadableObject;
 };
