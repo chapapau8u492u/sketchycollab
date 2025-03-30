@@ -9,7 +9,9 @@ export type Tool =
   | "pencil" 
   | "text"
   | "hand"
-  | "eraser";
+  | "eraser"
+  | "triangle"
+  | "hexagon";
 
 export type CanvasElement = {
   id: string;

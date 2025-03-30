@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
@@ -94,7 +93,6 @@ const Index: React.FC = () => {
   }, [setRoomId]);
 
   const handleAddShape = useCallback((shapeType: string) => {
-    // Logic to add a predefined shape to the canvas
     toast(`Adding ${shapeType} shape`);
     
     const centerX = window.innerWidth / 2;
@@ -129,7 +127,6 @@ const Index: React.FC = () => {
         };
         break;
       case 'triangle':
-        // For a triangle, we'll use a special path or shape
         element = {
           type: 'triangle',
           x: centerX - 50,
@@ -186,7 +183,6 @@ const Index: React.FC = () => {
       const canvas = document.querySelector('canvas') as HTMLCanvasElement;
       const dataUrl = canvas.toDataURL('image/png');
       
-      // Create a download link
       const link = document.createElement('a');
       link.download = `whiteboard-${new Date().toISOString().slice(0, 10)}.png`;
       link.href = dataUrl;

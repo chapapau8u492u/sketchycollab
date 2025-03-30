@@ -1,73 +1,72 @@
 
-import { Tool } from '../types';
+import { Tool, CanvasElement } from "../types";
+
+export const isDrawingTool = (tool: Tool): boolean => {
+  return [
+    'rectangle', 
+    'diamond',
+    'ellipse', 
+    'arrow', 
+    'line', 
+    'pencil', 
+    'text',
+    'triangle',
+    'hexagon'
+  ].includes(tool);
+};
 
 export const createDefaultElementForTool = (
   tool: Tool,
-  startX: number,
-  startY: number,
+  x: number,
+  y: number,
   color: string,
   strokeWidth: number
-) => {
-  const defaults = {
-    x: startX,
-    y: startY,
-    width: 0,
-    height: 0,
-    fill: tool === 'pencil' ? 'transparent' : color,
-    stroke: tool === 'pencil' ? color : '#000000',
+): Partial<CanvasElement> => {
+  const defaultElement: Partial<CanvasElement> = {
+    x,
+    y,
+    width: 100,
+    height: 100,
+    fill: color,
+    stroke: color,
     strokeWidth,
-    opacity: 1,
+    opacity: 1
   };
 
   switch (tool) {
     case 'rectangle':
-      return {
-        ...defaults,
-        type: 'rectangle',
-      };
-
-    case 'ellipse':
-      return {
-        ...defaults,
-        type: 'ellipse',
-      };
-
     case 'diamond':
+    case 'ellipse':
+    case 'triangle':
+    case 'hexagon':
       return {
-        ...defaults,
-        type: 'diamond',
+        ...defaultElement,
+        type: tool
       };
-
     case 'arrow':
     case 'line':
       return {
-        ...defaults,
-        type: tool,
-        points: [{ x: startX, y: startY }, { x: startX, y: startY }],
+        ...defaultElement,
+        fill: 'transparent',
+        type: tool
       };
-
     case 'pencil':
       return {
-        ...defaults,
-        type: 'pencil',
-        points: [{ x: startX, y: startY }],
+        ...defaultElement,
+        fill: 'transparent',
+        points: [{ x, y }],
+        type: tool
       };
-
     case 'text':
       return {
-        ...defaults,
-        type: 'text',
-        text: 'Click to edit',
+        ...defaultElement,
+        text: '',
         fontSize: 18,
-        width: 120,
-        height: 40,
+        width: 150,
+        height: 50,
+        type: tool
       };
-
     default:
-      return defaults;
+      return defaultElement;
   }
-};
-
-export const isDrawingTool = (tool: Tool) => {
-  return ['rectangle', 'ellipse', 'diamond', 'arrow', 'line', 'pencil', 'text'].includes(tool);
 };

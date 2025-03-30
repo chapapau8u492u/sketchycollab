@@ -12,7 +12,8 @@ import {
   ModifiedEvent,
   ObjectEvents,
   FabricObjectProps,
-  SerializedObjectProps
+  SerializedObjectProps,
+  Point
 } from 'fabric';
 import { AppState, CanvasElement, Tool } from '@/lib/types';
 import { createDefaultElementForTool, isDrawingTool } from '@/lib/utils/drawing';
@@ -248,6 +249,52 @@ const Board: React.FC<BoardProps> = ({
         });
         break;
         
+      case 'triangle':
+        obj = new Path.fromObject({
+          path: [
+            { x: element.x + element.width / 2, y: element.y },
+            { x: element.x, y: element.y + element.height },
+            { x: element.x + element.width, y: element.y + element.height },
+          ],
+          left: element.x,
+          top: element.y,
+          width: element.width,
+          height: element.height,
+          fill: element.fill,
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          data: { id: element.id },
+          selectable: state.tool === 'select'
+        });
+        break;
+        
+      case 'hexagon':
+        const hexPoints = [];
+        for (let i = 0; i < 6; i++) {
+          const angle = (Math.PI / 3) * i;
+          const x = element.width / 2 * Math.cos(angle) + element.x + element.width / 2;
+          const y = element.width / 2 * Math.sin(angle) + element.y + element.height / 2;
+          hexPoints.push({ x, y });
+        }
+        
+        // Create the path for the hexagon
+        const pathData = hexPoints.map((p, i) => 
+          i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`
+        ).join(' ') + ' Z';
+        
+        obj = new Path(pathData, {
+          left: element.x,
+          top: element.y,
+          width: element.width,
+          height: element.height,
+          fill: element.fill,
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          data: { id: element.id },
+          selectable: state.tool === 'select'
+        });
+        break;
+        
       case 'line':
       case 'arrow':
         obj = new Line([0, 0, element.width, element.height], {
@@ -354,7 +401,8 @@ const Board: React.FC<BoardProps> = ({
           obj.setCoords();
           fabricRef.current.renderAll();
         }
-      } else if (state.tool === 'rectangle' || state.tool === 'ellipse' || state.tool === 'diamond') {
+      } else if (state.tool === 'rectangle' || state.tool === 'ellipse' || state.tool === 'diamond'
+                || state.tool === 'triangle' || state.tool === 'hexagon') {
         const obj = fabricRef.current.getObjects().find(
           obj => (obj as ExtendedFabricObject).data?.id === currentElementRef.current
         ) as FabricObject;
@@ -454,6 +502,35 @@ const Board: React.FC<BoardProps> = ({
           selectable: false
         });
         fabricRef.current.add(ellipse);
+      } else if (state.tool === 'triangle') {
+        // Create a triangle path
+        const path = `M ${x} ${y} L ${x} ${y} L ${x} ${y} Z`;
+        const triangle = new Path(path, {
+          left: x,
+          top: y,
+          width: 0,
+          height: 0,
+          fill: element.fill,
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          data: { id: newElement.id },
+          selectable: false
+        });
+        fabricRef.current.add(triangle);
+      } else if (state.tool === 'hexagon') {
+        // Create a hexagon path (circle initially)
+        const path = new Path(`M ${x} ${y} L ${x} ${y} Z`, {
+          left: x,
+          top: y,
+          width: 0,
+          height: 0,
+          fill: element.fill,
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          data: { id: newElement.id },
+          selectable: false
+        });
+        fabricRef.current.add(path);
       } else if (['line', 'arrow'].includes(state.tool)) {
         const line = new Line([0, 0, 0, 0], {
           left: x,
@@ -478,6 +555,7 @@ const Board: React.FC<BoardProps> = ({
         fabricRef.current.add(textbox);
       }
     } else if (state.tool === 'eraser') {
+      // Fix: Call findTarget with only the event parameter
       const target = fabricRef.current.findTarget(opt.e as MouseEvent);
       if (target && (target as ExtendedFabricObject).data?.id) {
         const elementId = (target as ExtendedFabricObject).data!.id;
@@ -492,7 +570,7 @@ const Board: React.FC<BoardProps> = ({
         collaboration.broadcastRemoveElement(elementId);
       }
     } else if (state.tool === 'hand' && fabricRef.current) {
-      fabricRef.current.relativePan({ x: 10, y: 10 }); // Small pan to show it's working
+      fabricRef.current.relativePan({ x: 10, y: 10 } as Point); // Added type assertion here
     }
   }, [state.tool, state.color, state.strokeWidth, addElement, removeElement, collaboration, state.roomId, state.userPermissions]);
 
