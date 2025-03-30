@@ -243,10 +243,11 @@ const Board: React.FC<BoardProps> = ({
         });
         fabricRef.current.add(line);
       } else if (state.tool === 'text') {
+        const fontSize = element.fontSize || 18;
         const textbox = new Textbox('Click to edit', {
           left: x,
           top: y,
-          fontSize: element.fontSize || 18,
+          fontSize: fontSize,
           fill: element.fill,
           width: element.width,
           data: { id: newElement.id },
@@ -278,9 +279,10 @@ const Board: React.FC<BoardProps> = ({
         obj.set({ selectable: state.tool === 'select' });
         
         // Broadcast the created element
-        const element = {
+        const elementType = state.tool as Tool;
+        const element: CanvasElement = {
           id: obj.data!.id,
-          type: state.tool as Tool,
+          type: elementType,
           x: obj.left || 0,
           y: obj.top || 0,
           width: obj.width || 0,
@@ -291,7 +293,7 @@ const Board: React.FC<BoardProps> = ({
           opacity: obj.opacity || 1,
         };
         
-        collaboration.broadcastAddElement(element as CanvasElement);
+        collaboration.broadcastAddElement(element);
       }
       
       currentElementRef.current = null;
