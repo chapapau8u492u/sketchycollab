@@ -13,7 +13,7 @@ import {
   ObjectEvents,
   FabricObjectProps,
   SerializedObjectProps,
-  Point
+  Point as FabricPoint
 } from 'fabric';
 import { AppState, CanvasElement, Tool } from '@/lib/types';
 import { createDefaultElementForTool, isDrawingTool } from '@/lib/utils/drawing';
@@ -60,7 +60,6 @@ const Board: React.FC<BoardProps> = ({
   const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const userId = useRef(uuidv4()).current;
 
-  // Initialize canvas
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -90,13 +89,11 @@ const Board: React.FC<BoardProps> = ({
 
     window.addEventListener('resize', handleResize);
 
-    // Initialize brush properties
     if (canvas.freeDrawingBrush) {
       canvas.freeDrawingBrush.color = state.color;
       canvas.freeDrawingBrush.width = state.strokeWidth;
     }
 
-    // If there's a room ID, load saved elements
     if (state.roomId) {
       loadBoardElements(state.roomId);
     }
@@ -107,7 +104,6 @@ const Board: React.FC<BoardProps> = ({
     };
   }, []);
 
-  // Update canvas settings when tool or color changes
   useEffect(() => {
     if (!fabricRef.current) return;
     
@@ -132,11 +128,9 @@ const Board: React.FC<BoardProps> = ({
     fabricRef.current.renderAll();
   }, [state.tool, state.color, state.strokeWidth]);
 
-  // Subscribe to real-time updates when room ID changes
   useEffect(() => {
     if (!state.roomId) return;
     
-    // Subscribe to board_objects changes
     const channel = supabase
       .channel(`board-${state.roomId}`)
       .on(
@@ -161,7 +155,6 @@ const Board: React.FC<BoardProps> = ({
       )
       .subscribe();
       
-    // Load elements when room ID changes
     loadBoardElements(state.roomId);
     
     return () => {
@@ -169,7 +162,6 @@ const Board: React.FC<BoardProps> = ({
     };
   }, [state.roomId]);
 
-  // Load board elements from database
   const loadBoardElements = async (boardId: string) => {
     try {
       const { data, error } = await supabase
@@ -183,12 +175,10 @@ const Board: React.FC<BoardProps> = ({
       }
       
       if (data && data.length > 0) {
-        // Clear current canvas
         if (fabricRef.current) {
           fabricRef.current.clear();
         }
         
-        // Add each element to the canvas
         data.forEach(obj => {
           const element = obj.data as CanvasElement;
           addElementToCanvas(element);
@@ -199,7 +189,6 @@ const Board: React.FC<BoardProps> = ({
     }
   };
 
-  // Add element to canvas
   const addElementToCanvas = (element: CanvasElement) => {
     if (!fabricRef.current) return;
     
@@ -250,12 +239,11 @@ const Board: React.FC<BoardProps> = ({
         break;
         
       case 'triangle':
-        obj = new Path.fromObject({
-          path: [
-            { x: element.x + element.width / 2, y: element.y },
-            { x: element.x, y: element.y + element.height },
-            { x: element.x + element.width, y: element.y + element.height },
-          ],
+        const triangleWidth = element.width;
+        const triangleHeight = element.height;
+        const pathStr = `M ${triangleWidth/2},0 L ${triangleWidth},${triangleHeight} L 0,${triangleHeight} Z`;
+        
+        obj = new Path(pathStr, {
           left: element.x,
           top: element.y,
           width: element.width,
@@ -269,18 +257,23 @@ const Board: React.FC<BoardProps> = ({
         break;
         
       case 'hexagon':
-        const hexPoints = [];
+        const width = element.width;
+        const height = element.height;
+        const radius = Math.min(width, height) / 2;
+        let pathData = '';
+        
         for (let i = 0; i < 6; i++) {
           const angle = (Math.PI / 3) * i;
-          const x = element.width / 2 * Math.cos(angle) + element.x + element.width / 2;
-          const y = element.width / 2 * Math.sin(angle) + element.y + element.height / 2;
-          hexPoints.push({ x, y });
+          const x = radius * Math.cos(angle) + width / 2;
+          const y = radius * Math.sin(angle) + height / 2;
+          
+          if (i === 0) {
+            pathData += `M ${x} ${y}`;
+          } else {
+            pathData += ` L ${x} ${y}`;
+          }
         }
-        
-        // Create the path for the hexagon
-        const pathData = hexPoints.map((p, i) => 
-          i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`
-        ).join(' ') + ' Z';
+        pathData += ' Z';
         
         obj = new Path(pathData, {
           left: element.x,
@@ -327,7 +320,6 @@ const Board: React.FC<BoardProps> = ({
     }
   };
 
-  // Handle remote element changes
   const handleRemoteElementAdded = (data: any) => {
     const element = data.data as CanvasElement;
     addElementToCanvas(element);
@@ -379,7 +371,6 @@ const Board: React.FC<BoardProps> = ({
     removeElement(elementId);
   };
 
-  // Handle mouse events
   const handleMouseMove = useCallback((opt: TPointerEventInfo) => {
     if (!fabricRef.current || !opt.pointer) return;
 
@@ -389,7 +380,6 @@ const Board: React.FC<BoardProps> = ({
     
     if (isDrawingRef.current && currentElementRef.current) {
       if (state.tool === 'pencil') {
-        // Pencil drawing is handled by fabric.js
       } else if (['line', 'arrow'].includes(state.tool)) {
         const obj = fabricRef.current.getObjects().find(
           obj => (obj as ExtendedFabricObject).data?.id === currentElementRef.current
@@ -439,9 +429,8 @@ const Board: React.FC<BoardProps> = ({
     
     const { x, y } = opt.pointer;
     
-    // Check if user has write permission (if in a shared board)
     if (state.roomId) {
-      const permission = state.userPermissions[userId] || 'write'; // Default to write if not specified
+      const permission = state.userPermissions[userId] || 'write';
       if (permission === 'read' && state.tool !== 'hand' && state.tool !== 'select') {
         toast.error("You only have read permission for this board");
         return;
@@ -503,7 +492,6 @@ const Board: React.FC<BoardProps> = ({
         });
         fabricRef.current.add(ellipse);
       } else if (state.tool === 'triangle') {
-        // Create a triangle path
         const path = `M ${x} ${y} L ${x} ${y} L ${x} ${y} Z`;
         const triangle = new Path(path, {
           left: x,
@@ -518,8 +506,8 @@ const Board: React.FC<BoardProps> = ({
         });
         fabricRef.current.add(triangle);
       } else if (state.tool === 'hexagon') {
-        // Create a hexagon path (circle initially)
-        const path = new Path(`M ${x} ${y} L ${x} ${y} Z`, {
+        const path = `M ${x} ${y} L ${x} ${y} Z`;
+        const hexagon = new Path(path, {
           left: x,
           top: y,
           width: 0,
@@ -530,7 +518,7 @@ const Board: React.FC<BoardProps> = ({
           data: { id: newElement.id },
           selectable: false
         });
-        fabricRef.current.add(path);
+        fabricRef.current.add(hexagon);
       } else if (['line', 'arrow'].includes(state.tool)) {
         const line = new Line([0, 0, 0, 0], {
           left: x,
@@ -555,12 +543,10 @@ const Board: React.FC<BoardProps> = ({
         fabricRef.current.add(textbox);
       }
     } else if (state.tool === 'eraser') {
-      // Fix: Call findTarget with only the event parameter
       const target = fabricRef.current.findTarget(opt.e as MouseEvent);
       if (target && (target as ExtendedFabricObject).data?.id) {
         const elementId = (target as ExtendedFabricObject).data!.id;
         
-        // Delete from database if in a room
         if (state.roomId) {
           deleteElementFromDatabase(elementId);
         }
@@ -570,7 +556,8 @@ const Board: React.FC<BoardProps> = ({
         collaboration.broadcastRemoveElement(elementId);
       }
     } else if (state.tool === 'hand' && fabricRef.current) {
-      fabricRef.current.relativePan({ x: 10, y: 10 } as Point); // Added type assertion here
+      const delta = new FabricPoint(10, 10);
+      fabricRef.current.relativePan(delta);
     }
   }, [state.tool, state.color, state.strokeWidth, addElement, removeElement, collaboration, state.roomId, state.userPermissions]);
 
@@ -587,7 +574,6 @@ const Board: React.FC<BoardProps> = ({
       if (obj) {
         obj.set({ selectable: state.tool === 'select' });
         
-        // Create element to broadcast
         const elementType = state.tool;
         const element: CanvasElement = {
           id: obj.data!.id,
@@ -602,13 +588,11 @@ const Board: React.FC<BoardProps> = ({
           opacity: obj.opacity || 1,
         };
         
-        // If text, save the text content
         if (obj instanceof Textbox) {
           element.text = obj.text;
           element.fontSize = obj.fontSize;
         }
         
-        // Save to database if in a room
         if (state.roomId) {
           saveElementToDatabase(state.roomId, element);
         }
@@ -620,7 +604,6 @@ const Board: React.FC<BoardProps> = ({
     }
   }, [state.tool, collaboration, state.roomId]);
 
-  // Save and delete elements to/from database
   const saveElementToDatabase = async (boardId: string, element: CanvasElement) => {
     try {
       const { error } = await supabase
@@ -640,7 +623,7 @@ const Board: React.FC<BoardProps> = ({
       console.error('Failed to save element to database:', err);
     }
   };
-  
+
   const deleteElementFromDatabase = async (elementId: string) => {
     try {
       const { error } = await supabase
@@ -670,7 +653,7 @@ const Board: React.FC<BoardProps> = ({
     selectElement(null);
   }, [selectElement]);
 
-  const handleObjectModified = useCallback((opt: any) => {
+  const handleObjectModified = useCallback((opt: ModifiedEvent<ObjectEvents>) => {
     const target = opt.target;
     if (!target) return;
     
@@ -684,7 +667,6 @@ const Board: React.FC<BoardProps> = ({
       height: obj.height || 0,
     };
     
-    // If text, update the text content
     if (obj instanceof Textbox) {
       changes.text = obj.text;
       changes.fontSize = obj.fontSize;
@@ -692,7 +674,6 @@ const Board: React.FC<BoardProps> = ({
     
     updateElement(obj.data.id, changes);
     
-    // Update in database if in a room
     if (state.roomId) {
       updateElementInDatabase(obj.data.id, changes);
     }
