@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { 
   Pointer, Square, Circle, Type, 
   ArrowRight, Minus, Pencil, 
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tool } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { toast } from "sonner";
 
 interface ToolbarProps {
   currentTool: Tool;
@@ -42,7 +43,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
   ];
 
   // Set up keyboard shortcuts
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
@@ -51,6 +52,23 @@ const Toolbar: React.FC<ToolbarProps> = ({
       const tool = tools.find(tool => tool.shortcut.toLowerCase() === e.key.toLowerCase());
       if (tool) {
         setTool(tool.name as Tool);
+        toast.info(`Tool: ${tool.name}`);
+      }
+
+      // Handle undo/redo keyboard shortcuts
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        if (e.shiftKey) {
+          onRedo();
+        } else {
+          onUndo();
+        }
+        e.preventDefault();
+      }
+
+      // Export shortcut
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
+        onExport();
+        e.preventDefault();
       }
     };
 
@@ -58,7 +76,12 @@ const Toolbar: React.FC<ToolbarProps> = ({
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [setTool]);
+  }, [setTool, onUndo, onRedo, onExport, tools]);
+
+  const handleToolClick = (tool: Tool) => {
+    setTool(tool);
+    toast.info(`Tool: ${tool}`);
+  };
 
   return (
     <div className="fixed top-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-md px-2 py-1.5 z-10 flex items-center gap-0.5">
@@ -69,12 +92,16 @@ const Toolbar: React.FC<ToolbarProps> = ({
               variant="ghost"
               size="icon"
               className={cn(
-                "rounded-md h-9 w-9",
-                currentTool === tool.name && "bg-slate-100"
+                "rounded-md h-9 w-9 transition-all duration-200",
+                currentTool === tool.name ? "bg-slate-100 shadow-inner" : "",
+                currentTool === tool.name ? "tool-item-active" : ""
               )}
-              onClick={() => setTool(tool.name as Tool)}
+              onClick={() => handleToolClick(tool.name as Tool)}
             >
-              <tool.icon className="h-5 w-5" />
+              <tool.icon className={cn(
+                "h-5 w-5 transition-colors",
+                currentTool === tool.name ? "text-primary" : "text-gray-700"
+              )} />
               <span className="sr-only">{tool.tooltip}</span>
             </Button>
           </TooltipTrigger>

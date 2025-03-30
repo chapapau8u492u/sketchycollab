@@ -16,7 +16,7 @@ const CursorOverlay: React.FC<CursorOverlayProps> = ({ users, currentUserId }) =
         return (
           <div
             key={user.id}
-            className="absolute flex flex-col items-start"
+            className="absolute flex flex-col items-start animate-pulse-subtle"
             style={{
               transform: `translate(${user.cursor.x}px, ${user.cursor.y}px)`,
               zIndex: 1000,
@@ -39,7 +39,7 @@ const CursorOverlay: React.FC<CursorOverlayProps> = ({ users, currentUserId }) =
             </svg>
             
             <div 
-              className="px-2 py-1 rounded-lg text-white text-xs ml-4 whitespace-nowrap"
+              className="px-2 py-1 rounded-lg text-white text-xs ml-4 whitespace-nowrap shadow-md"
               style={{ backgroundColor: user.color }}
             >
               {user.name}

@@ -9,7 +9,8 @@ import {
   UserCheck,
   UserX,
   Edit,
-  Eye
+  Eye,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -18,6 +19,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { User, UserPermission } from "@/lib/types";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface ControlsProps {
   zoom: number;
@@ -67,6 +69,17 @@ const Controls: React.FC<ControlsProps> = ({
   };
 
   const activeUsers = users.filter(user => user.id !== currentUserId);
+  const totalUsers = activeUsers.length + 1; // Include current user
+
+  const handleZoomIn = () => {
+    setZoom(zoom + 0.1);
+    toast.info(`Zoom: ${Math.round((zoom + 0.1) * 100)}%`);
+  };
+
+  const handleZoomOut = () => {
+    setZoom(zoom - 0.1);
+    toast.info(`Zoom: ${Math.round((zoom - 0.1) * 100)}%`);
+  };
 
   return (
     <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-10">
@@ -76,7 +89,7 @@ const Controls: React.FC<ControlsProps> = ({
             variant="outline"
             size="icon"
             className="bg-white rounded-full h-10 w-10 shadow-md"
-            onClick={() => setZoom(zoom + 0.1)}
+            onClick={handleZoomIn}
           >
             <ZoomIn className="h-5 w-5" />
             <span className="sr-only">Zoom In</span>
@@ -95,7 +108,7 @@ const Controls: React.FC<ControlsProps> = ({
             variant="outline"
             size="icon"
             className="bg-white rounded-full h-10 w-10 shadow-md"
-            onClick={() => setZoom(zoom - 0.1)}
+            onClick={handleZoomOut}
           >
             <ZoomOut className="h-5 w-5" />
             <span className="sr-only">Zoom Out</span>
@@ -111,12 +124,15 @@ const Controls: React.FC<ControlsProps> = ({
           <Button 
             variant="outline" 
             size="icon"
-            className="bg-white rounded-full h-10 w-10 shadow-md relative"
+            className={cn(
+              "bg-white rounded-full h-10 w-10 shadow-md relative",
+              roomId ? "ring-2 ring-primary" : ""
+            )}
           >
             <Users className="h-5 w-5" />
-            {activeUsers.length > 0 && (
+            {totalUsers > 1 && (
               <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                {activeUsers.length}
+                {totalUsers}
               </span>
             )}
             <span className="sr-only">Collaborate</span>
@@ -142,16 +158,28 @@ const Controls: React.FC<ControlsProps> = ({
                 
                 <div className="border-t border-gray-100 my-2 pt-2">
                   <p className="text-xs font-semibold mb-1 flex justify-between items-center">
-                    <span>Active users ({activeUsers.length})</span>
+                    <span>Active users ({totalUsers})</span>
                     {isOwner && <span className="text-xs text-muted-foreground">You are the owner</span>}
                   </p>
                   
+                  {/* Current user */}
+                  <div className="max-h-40 overflow-y-auto space-y-1 mt-2">
+                    <div className="flex items-center justify-between bg-gray-50 p-1.5 rounded-md">
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className="w-3 h-3 rounded-full bg-blue-500"
+                        />
+                        <span className="text-xs font-medium">{currentUserId.substring(0, 8)} (You)</span>
+                      </div>
+                      <Badge variant="secondary" className="text-[10px] h-5 px-1">Owner</Badge>
+                    </div>
+                  
                   <div className="max-h-40 overflow-y-auto space-y-1">
                     {activeUsers.length === 0 ? (
-                      <p className="text-xs text-muted-foreground">No other users in the room</p>
+                      <p className="text-xs text-muted-foreground mt-1">No other users in the room</p>
                     ) : (
                       activeUsers.map((user) => (
-                        <div key={user.id} className="flex items-center justify-between bg-gray-50 p-1 rounded-md">
+                        <div key={user.id} className="flex items-center justify-between bg-gray-50 p-1.5 rounded-md">
                           <div className="flex items-center gap-2">
                             <div 
                               className="w-3 h-3 rounded-full" 
@@ -171,6 +199,9 @@ const Controls: React.FC<ControlsProps> = ({
                                     onClick={() => onUpdateUserPermission(user.id, 'write')}
                                   >
                                     <Edit className="h-3 w-3" />
+                                    {userPermissions[user.id] === 'write' && 
+                                      <Check className="h-2 w-2 absolute top-0 right-0" />
+                                    }
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Can edit</TooltipContent>
@@ -185,6 +216,9 @@ const Controls: React.FC<ControlsProps> = ({
                                     onClick={() => onUpdateUserPermission(user.id, 'read')}
                                   >
                                     <Eye className="h-3 w-3" />
+                                    {userPermissions[user.id] === 'read' && 
+                                      <Check className="h-2 w-2 absolute top-0 right-0" />
+                                    }
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Read only</TooltipContent>
@@ -210,6 +244,11 @@ const Controls: React.FC<ControlsProps> = ({
                     value={joinInput}
                     onChange={(e) => setJoinInput(e.target.value)}
                     className="text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleJoinRoom();
+                      }
+                    }}
                   />
                   <Button size="sm" onClick={handleJoinRoom}>Join</Button>
                 </div>

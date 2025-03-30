@@ -1,6 +1,6 @@
 
 import { useState, useCallback, useRef } from 'react';
-import { Tool, AppState, CanvasElement } from './types';
+import { Tool, AppState, CanvasElement, UserPermission } from './types';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 
@@ -133,6 +133,10 @@ export function useCanvasState() {
     setState(prev => ({
       ...prev,
       users: [...prev.users, user],
+      userPermissions: {
+        ...prev.userPermissions,
+        [user.id]: 'write' // Default permission
+      }
     }));
   }, []);
 
@@ -201,7 +205,7 @@ export function useCanvasState() {
     }
   }, []);
 
-  const setUserPermission = useCallback((userId: string, permission: 'read' | 'write') => {
+  const setUserPermission = useCallback((userId: string, permission: UserPermission) => {
     setState(prev => ({
       ...prev,
       userPermissions: {

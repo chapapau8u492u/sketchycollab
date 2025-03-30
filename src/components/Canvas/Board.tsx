@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   Canvas as FabricCanvas, 
@@ -10,10 +11,10 @@ import {
   Textbox, 
   TPointerEventInfo, 
   TEvent,
-  TPointerEvent,
-  TBrushEventData,
   ModifiedEvent,
-  ObjectEvents
+  ObjectEvents,
+  FabricObjectProps,
+  SerializedObjectProps
 } from 'fabric';
 import { AppState, CanvasElement, Tool } from '@/lib/types';
 import { createDefaultElementForTool, isDrawingTool } from '@/lib/utils/drawing';
@@ -127,6 +128,7 @@ const Board: React.FC<BoardProps> = ({
     
     if (isDrawingRef.current && currentElementRef.current) {
       if (state.tool === 'pencil') {
+        // Pencil drawing is handled by fabric.js
       } else if (['line', 'arrow'].includes(state.tool)) {
         const obj = fabricRef.current.getObjects().find(
           obj => (obj as ExtendedFabricObject).data?.id === currentElementRef.current
@@ -244,11 +246,12 @@ const Board: React.FC<BoardProps> = ({
         fabricRef.current.add(textbox);
       }
     } else if (state.tool === 'eraser') {
-      const target = fabricRef.current.findTarget(opt.e as MouseEvent);
+      const target = fabricRef.current.findTarget(opt.e as MouseEvent, false);
       if (target && (target as ExtendedFabricObject).data?.id) {
-        removeElement((target as ExtendedFabricObject).data!.id);
+        const elementId = (target as ExtendedFabricObject).data!.id;
+        removeElement(elementId);
         fabricRef.current.remove(target);
-        collaboration.broadcastRemoveElement((target as ExtendedFabricObject).data!.id);
+        collaboration.broadcastRemoveElement(elementId);
       }
     }
   }, [state.tool, state.color, state.strokeWidth, addElement, removeElement, collaboration]);
@@ -266,7 +269,8 @@ const Board: React.FC<BoardProps> = ({
       if (obj) {
         obj.set({ selectable: state.tool === 'select' });
         
-        const elementType = state.tool as Tool;
+        // Create element to broadcast
+        const elementType = state.tool;
         const element: CanvasElement = {
           id: obj.data!.id,
           type: elementType,
@@ -287,12 +291,13 @@ const Board: React.FC<BoardProps> = ({
     }
   }, [state.tool, collaboration]);
 
-  const handleSelection = useCallback((opt: { selected?: FabricObject[] }) => {
-    if (!opt.selected || !opt.selected.length) return;
+  const handleSelection = useCallback((opt: any) => {
+    const selected = opt.selected;
+    if (!selected || !selected.length) return;
     
-    const selected = opt.selected[0] as ExtendedFabricObject;
-    if (selected.data?.id) {
-      selectElement(selected.data.id);
+    const selectedObj = selected[0] as ExtendedFabricObject;
+    if (selectedObj.data?.id) {
+      selectElement(selectedObj.data.id);
     }
   }, [selectElement]);
 
@@ -300,10 +305,11 @@ const Board: React.FC<BoardProps> = ({
     selectElement(null);
   }, [selectElement]);
 
-  const handleObjectModified = useCallback((opt: { target?: FabricObject }) => {
-    if (!opt.target) return;
+  const handleObjectModified = useCallback((opt: any) => {
+    const target = opt.target;
+    if (!target) return;
     
-    const obj = opt.target as ExtendedFabricObject;
+    const obj = target as ExtendedFabricObject;
     if (!obj || !obj.data?.id) return;
     
     const changes = {
