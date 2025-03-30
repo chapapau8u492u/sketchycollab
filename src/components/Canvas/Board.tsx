@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   Canvas as FabricCanvas, 
@@ -79,7 +80,9 @@ const Board: React.FC<BoardProps> = ({
     canvas.on('selection:created', handleSelection);
     canvas.on('selection:updated', handleSelection);
     canvas.on('selection:cleared', handleSelectionCleared);
-    canvas.on('object:modified', handleObjectModified);
+    
+    // Fix: Changed the event binding to use the correct type
+    canvas.on('object:modified', (opt) => handleObjectModified(opt));
 
     const handleResize = () => {
       setCanvasSize({ width: window.innerWidth, height: window.innerHeight });
@@ -653,7 +656,8 @@ const Board: React.FC<BoardProps> = ({
     selectElement(null);
   }, [selectElement]);
 
-  const handleObjectModified = useCallback((opt: ModifiedEvent<ObjectEvents>) => {
+  // Fixed the ModifiedEvent type signature
+  const handleObjectModified = useCallback((opt: ModifiedEvent<any>) => {
     const target = opt.target;
     if (!target) return;
     
@@ -694,19 +698,21 @@ const Board: React.FC<BoardProps> = ({
         return;
       }
       
-      const updatedData = { ...data.data, ...changes };
-      
-      const { error } = await supabase
-        .from('board_objects')
-        .update({ 
-          data: updatedData,
-          updated_by: userId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('data->>id', elementId);
+      if (data && data.data) {
+        const updatedData = { ...data.data, ...changes };
         
-      if (error) {
-        console.error('Error updating element in database:', error);
+        const { error } = await supabase
+          .from('board_objects')
+          .update({ 
+            data: updatedData,
+            updated_by: userId,
+            updated_at: new Date().toISOString()
+          })
+          .eq('data->>id', elementId);
+          
+        if (error) {
+          console.error('Error updating element in database:', error);
+        }
       }
     } catch (err) {
       console.error('Failed to update element in database:', err);
