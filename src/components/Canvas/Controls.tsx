@@ -174,60 +174,61 @@ const Controls: React.FC<ControlsProps> = ({
                       <Badge variant="secondary" className="text-[10px] h-5 px-1">Owner</Badge>
                     </div>
                   
-                  <div className="max-h-40 overflow-y-auto space-y-1">
-                    {activeUsers.length === 0 ? (
-                      <p className="text-xs text-muted-foreground mt-1">No other users in the room</p>
-                    ) : (
-                      activeUsers.map((user) => (
-                        <div key={user.id} className="flex items-center justify-between bg-gray-50 p-1.5 rounded-md">
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-3 h-3 rounded-full" 
-                              style={{ backgroundColor: user.color }}
-                            />
-                            <span className="text-xs">{user.name}</span>
-                          </div>
-                          
-                          {isOwner && (
-                            <div className="flex gap-1">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button 
-                                    size="icon"
-                                    variant={userPermissions[user.id] === 'write' ? 'default' : 'outline'} 
-                                    className="h-6 w-6"
-                                    onClick={() => onUpdateUserPermission(user.id, 'write')}
-                                  >
-                                    <Edit className="h-3 w-3" />
-                                    {userPermissions[user.id] === 'write' && 
-                                      <Check className="h-2 w-2 absolute top-0 right-0" />
-                                    }
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Can edit</TooltipContent>
-                              </Tooltip>
-                              
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button 
-                                    size="icon"
-                                    variant={userPermissions[user.id] === 'read' ? 'default' : 'outline'} 
-                                    className="h-6 w-6"
-                                    onClick={() => onUpdateUserPermission(user.id, 'read')}
-                                  >
-                                    <Eye className="h-3 w-3" />
-                                    {userPermissions[user.id] === 'read' && 
-                                      <Check className="h-2 w-2 absolute top-0 right-0" />
-                                    }
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>Read only</TooltipContent>
-                              </Tooltip>
+                    <div className="max-h-40 overflow-y-auto space-y-1">
+                      {activeUsers.length === 0 ? (
+                        <p className="text-xs text-muted-foreground mt-1">No other users in the room</p>
+                      ) : (
+                        activeUsers.map((user) => (
+                          <div key={user.id} className="flex items-center justify-between bg-gray-50 p-1.5 rounded-md">
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: user.color }}
+                              />
+                              <span className="text-xs">{user.name}</span>
                             </div>
-                          )}
-                        </div>
-                      ))
-                    )}
+                            
+                            {isOwner && (
+                              <div className="flex gap-1">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button 
+                                      size="icon"
+                                      variant={userPermissions[user.id] === 'write' ? 'default' : 'outline'} 
+                                      className="h-6 w-6"
+                                      onClick={() => onUpdateUserPermission(user.id, 'write')}
+                                    >
+                                      <Edit className="h-3 w-3" />
+                                      {userPermissions[user.id] === 'write' && 
+                                        <Check className="h-2 w-2 absolute top-0 right-0" />
+                                      }
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Can edit</TooltipContent>
+                                </Tooltip>
+                                
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button 
+                                      size="icon"
+                                      variant={userPermissions[user.id] === 'read' ? 'default' : 'outline'} 
+                                      className="h-6 w-6"
+                                      onClick={() => onUpdateUserPermission(user.id, 'read')}
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                      {userPermissions[user.id] === 'read' && 
+                                        <Check className="h-2 w-2 absolute top-0 right-0" />
+                                      }
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Read only</TooltipContent>
+                                </Tooltip>
+                              </div>
+                            )}
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
