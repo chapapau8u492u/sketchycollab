@@ -8,8 +8,7 @@ import {
   Line, 
   Ellipse, 
   Textbox, 
-  TPointerEventInfo, 
-  TEvent,
+  TPointerEventInfo,
   ModifiedEvent,
   ObjectEvents,
   FabricObjectProps,
@@ -20,6 +19,7 @@ import { createDefaultElementForTool, isDrawingTool } from '@/lib/utils/drawing'
 import { toast } from "sonner";
 import CursorOverlay from './CursorOverlay';
 import { v4 as uuidv4 } from 'uuid';
+import { supabase } from '@/integrations/supabase/client';
 
 interface BoardProps {
   state: AppState;
@@ -59,6 +59,7 @@ const Board: React.FC<BoardProps> = ({
   const [canvasSize, setCanvasSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const userId = useRef(uuidv4()).current;
 
+  // Initialize canvas
   useEffect(() => {
     if (!canvasRef.current) return;
 
@@ -88,12 +89,24 @@ const Board: React.FC<BoardProps> = ({
 
     window.addEventListener('resize', handleResize);
 
+    // Initialize brush properties
+    if (canvas.freeDrawingBrush) {
+      canvas.freeDrawingBrush.color = state.color;
+      canvas.freeDrawingBrush.width = state.strokeWidth;
+    }
+
+    // If there's a room ID, load saved elements
+    if (state.roomId) {
+      loadBoardElements(state.roomId);
+    }
+
     return () => {
       window.removeEventListener('resize', handleResize);
       canvas.dispose();
     };
   }, []);
 
+  // Update canvas settings when tool or color changes
   useEffect(() => {
     if (!fabricRef.current) return;
     
@@ -118,6 +131,208 @@ const Board: React.FC<BoardProps> = ({
     fabricRef.current.renderAll();
   }, [state.tool, state.color, state.strokeWidth]);
 
+  // Subscribe to real-time updates when room ID changes
+  useEffect(() => {
+    if (!state.roomId) return;
+    
+    // Subscribe to board_objects changes
+    const channel = supabase
+      .channel(`board-${state.roomId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'board_objects',
+          filter: `board_id=eq.${state.roomId}`
+        },
+        (payload) => {
+          console.log('Database change received:', payload);
+          
+          if (payload.eventType === 'INSERT') {
+            handleRemoteElementAdded(payload.new);
+          } else if (payload.eventType === 'UPDATE') {
+            handleRemoteElementUpdated(payload.new);
+          } else if (payload.eventType === 'DELETE') {
+            handleRemoteElementRemoved(payload.old);
+          }
+        }
+      )
+      .subscribe();
+      
+    // Load elements when room ID changes
+    loadBoardElements(state.roomId);
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [state.roomId]);
+
+  // Load board elements from database
+  const loadBoardElements = async (boardId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('board_objects')
+        .select('*')
+        .eq('board_id', boardId);
+        
+      if (error) {
+        console.error('Error loading board elements:', error);
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        // Clear current canvas
+        if (fabricRef.current) {
+          fabricRef.current.clear();
+        }
+        
+        // Add each element to the canvas
+        data.forEach(obj => {
+          const element = obj.data as CanvasElement;
+          addElementToCanvas(element);
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load board elements:', err);
+    }
+  };
+
+  // Add element to canvas
+  const addElementToCanvas = (element: CanvasElement) => {
+    if (!fabricRef.current) return;
+    
+    let obj: FabricObject | null = null;
+    
+    switch (element.type) {
+      case 'rectangle':
+        obj = new Rect({
+          left: element.x,
+          top: element.y,
+          width: element.width,
+          height: element.height,
+          fill: element.fill,
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          data: { id: element.id },
+          selectable: state.tool === 'select'
+        });
+        break;
+        
+      case 'diamond':
+        obj = new Rect({
+          left: element.x,
+          top: element.y,
+          width: element.width,
+          height: element.height,
+          fill: element.fill,
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          angle: 45,
+          data: { id: element.id },
+          selectable: state.tool === 'select'
+        });
+        break;
+        
+      case 'ellipse':
+        obj = new Ellipse({
+          left: element.x,
+          top: element.y,
+          rx: element.width / 2,
+          ry: element.height / 2,
+          fill: element.fill,
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          data: { id: element.id },
+          selectable: state.tool === 'select'
+        });
+        break;
+        
+      case 'line':
+      case 'arrow':
+        obj = new Line([0, 0, element.width, element.height], {
+          left: element.x,
+          top: element.y,
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          data: { id: element.id },
+          selectable: state.tool === 'select'
+        });
+        break;
+        
+      case 'text':
+        obj = new Textbox(element.text || 'Text', {
+          left: element.x,
+          top: element.y,
+          width: element.width,
+          fontSize: element.fontSize || 18,
+          fill: element.fill,
+          data: { id: element.id },
+          selectable: state.tool === 'select',
+          editable: state.tool === 'select'
+        });
+        break;
+    }
+    
+    if (obj) {
+      fabricRef.current.add(obj);
+      fabricRef.current.renderAll();
+    }
+  };
+
+  // Handle remote element changes
+  const handleRemoteElementAdded = (data: any) => {
+    const element = data.data as CanvasElement;
+    addElementToCanvas(element);
+    addElement(element);
+  };
+  
+  const handleRemoteElementUpdated = (data: any) => {
+    const element = data.data as CanvasElement;
+    
+    if (fabricRef.current) {
+      const objects = fabricRef.current.getObjects();
+      const obj = objects.find(o => (o as ExtendedFabricObject).data?.id === element.id);
+      
+      if (obj) {
+        obj.set({
+          left: element.x,
+          top: element.y,
+          width: element.width,
+          height: element.height,
+        });
+        
+        if (obj instanceof Textbox && element.text) {
+          obj.set({
+            text: element.text,
+            fontSize: element.fontSize
+          });
+        }
+        
+        fabricRef.current.renderAll();
+      }
+    }
+    
+    updateElement(element.id, element);
+  };
+  
+  const handleRemoteElementRemoved = (data: any) => {
+    const elementId = data.id;
+    
+    if (fabricRef.current) {
+      const objects = fabricRef.current.getObjects();
+      const obj = objects.find(o => (o as ExtendedFabricObject).data?.id === elementId);
+      
+      if (obj) {
+        fabricRef.current.remove(obj);
+        fabricRef.current.renderAll();
+      }
+    }
+    
+    removeElement(elementId);
+  };
+
+  // Handle mouse events
   const handleMouseMove = useCallback((opt: TPointerEventInfo) => {
     if (!fabricRef.current || !opt.pointer) return;
 
@@ -134,10 +349,9 @@ const Board: React.FC<BoardProps> = ({
         ) as Line;
         
         if (obj) {
-          obj.set({
-            x2: x,
-            y2: y
-          });
+          const points = [0, 0, x - obj.left!, y - obj.top!];
+          obj.set({ width: x - obj.left!, height: y - obj.top! });
+          obj.setCoords();
           fabricRef.current.renderAll();
         }
       } else if (state.tool === 'rectangle' || state.tool === 'ellipse' || state.tool === 'diamond') {
@@ -158,6 +372,14 @@ const Board: React.FC<BoardProps> = ({
             top: height > 0 ? startY : y
           });
           
+          if (obj instanceof Ellipse) {
+            obj.set({
+              rx: Math.abs(width) / 2,
+              ry: Math.abs(height) / 2
+            });
+          }
+          
+          obj.setCoords();
           fabricRef.current.renderAll();
         }
       }
@@ -168,6 +390,15 @@ const Board: React.FC<BoardProps> = ({
     if (!fabricRef.current || !opt.pointer) return;
     
     const { x, y } = opt.pointer;
+    
+    // Check if user has write permission (if in a shared board)
+    if (state.roomId) {
+      const permission = state.userPermissions[userId] || 'write'; // Default to write if not specified
+      if (permission === 'read' && state.tool !== 'hand' && state.tool !== 'select') {
+        toast.error("You only have read permission for this board");
+        return;
+      }
+    }
     
     isDrawingRef.current = isDrawingTool(state.tool);
     
@@ -224,7 +455,9 @@ const Board: React.FC<BoardProps> = ({
         });
         fabricRef.current.add(ellipse);
       } else if (['line', 'arrow'].includes(state.tool)) {
-        const line = new Line([x, y, x, y], {
+        const line = new Line([0, 0, 0, 0], {
+          left: x,
+          top: y,
           stroke: element.stroke,
           strokeWidth: element.strokeWidth,
           data: { id: newElement.id },
@@ -248,12 +481,20 @@ const Board: React.FC<BoardProps> = ({
       const target = fabricRef.current.findTarget(opt.e as MouseEvent);
       if (target && (target as ExtendedFabricObject).data?.id) {
         const elementId = (target as ExtendedFabricObject).data!.id;
+        
+        // Delete from database if in a room
+        if (state.roomId) {
+          deleteElementFromDatabase(elementId);
+        }
+        
         removeElement(elementId);
         fabricRef.current.remove(target);
         collaboration.broadcastRemoveElement(elementId);
       }
+    } else if (state.tool === 'hand' && fabricRef.current) {
+      fabricRef.current.relativePan({ x: 10, y: 10 }); // Small pan to show it's working
     }
-  }, [state.tool, state.color, state.strokeWidth, addElement, removeElement, collaboration]);
+  }, [state.tool, state.color, state.strokeWidth, addElement, removeElement, collaboration, state.roomId, state.userPermissions]);
 
   const handleMouseUp = useCallback(() => {
     if (!fabricRef.current) return;
@@ -283,12 +524,59 @@ const Board: React.FC<BoardProps> = ({
           opacity: obj.opacity || 1,
         };
         
+        // If text, save the text content
+        if (obj instanceof Textbox) {
+          element.text = obj.text;
+          element.fontSize = obj.fontSize;
+        }
+        
+        // Save to database if in a room
+        if (state.roomId) {
+          saveElementToDatabase(state.roomId, element);
+        }
+        
         collaboration.broadcastAddElement(element);
       }
       
       currentElementRef.current = null;
     }
-  }, [state.tool, collaboration]);
+  }, [state.tool, collaboration, state.roomId]);
+
+  // Save and delete elements to/from database
+  const saveElementToDatabase = async (boardId: string, element: CanvasElement) => {
+    try {
+      const { error } = await supabase
+        .from('board_objects')
+        .insert({
+          board_id: boardId,
+          type: element.type,
+          data: element,
+          created_by: userId,
+          updated_by: userId
+        });
+        
+      if (error) {
+        console.error('Error saving element to database:', error);
+      }
+    } catch (err) {
+      console.error('Failed to save element to database:', err);
+    }
+  };
+  
+  const deleteElementFromDatabase = async (elementId: string) => {
+    try {
+      const { error } = await supabase
+        .from('board_objects')
+        .delete()
+        .eq('data->>id', elementId);
+        
+      if (error) {
+        console.error('Error deleting element from database:', error);
+      }
+    } catch (err) {
+      console.error('Failed to delete element from database:', err);
+    }
+  };
 
   const handleSelection = useCallback((opt: any) => {
     const selected = opt.selected;
@@ -311,16 +599,60 @@ const Board: React.FC<BoardProps> = ({
     const obj = target as ExtendedFabricObject;
     if (!obj || !obj.data?.id) return;
     
-    const changes = {
+    const changes: Partial<CanvasElement> = {
       x: obj.left || 0,
       y: obj.top || 0,
       width: obj.width || 0,
       height: obj.height || 0,
     };
     
+    // If text, update the text content
+    if (obj instanceof Textbox) {
+      changes.text = obj.text;
+      changes.fontSize = obj.fontSize;
+    }
+    
     updateElement(obj.data.id, changes);
+    
+    // Update in database if in a room
+    if (state.roomId) {
+      updateElementInDatabase(obj.data.id, changes);
+    }
+    
     collaboration.broadcastUpdateElement(obj.data.id, changes);
-  }, [updateElement, collaboration]);
+  }, [updateElement, collaboration, state.roomId]);
+
+  const updateElementInDatabase = async (elementId: string, changes: Partial<CanvasElement>) => {
+    try {
+      const { data, error: fetchError } = await supabase
+        .from('board_objects')
+        .select('data')
+        .eq('data->>id', elementId)
+        .single();
+        
+      if (fetchError) {
+        console.error('Error fetching element for update:', fetchError);
+        return;
+      }
+      
+      const updatedData = { ...data.data, ...changes };
+      
+      const { error } = await supabase
+        .from('board_objects')
+        .update({ 
+          data: updatedData,
+          updated_by: userId,
+          updated_at: new Date().toISOString()
+        })
+        .eq('data->>id', elementId);
+        
+      if (error) {
+        console.error('Error updating element in database:', error);
+      }
+    } catch (err) {
+      console.error('Failed to update element in database:', err);
+    }
+  };
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-[url('/grid.svg')]">

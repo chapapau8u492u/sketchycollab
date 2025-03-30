@@ -6,8 +6,6 @@ import {
   Share, 
   Plus, 
   Users,
-  UserCheck,
-  UserX,
   Edit,
   Eye,
   Check

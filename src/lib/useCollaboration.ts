@@ -1,13 +1,10 @@
 
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useEffect, useState, useCallback } from 'react';
 import { User, CanvasElement, UserPermission } from './types';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
-
-// For demo purposes we'll use a mock server
-// In a real application, you'd use a real WebSocket server
-const MOCK_DELAY = 100; // ms for simulated network latency
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
 
 export function useCollaboration(
   roomId: string | null,
@@ -21,154 +18,330 @@ export function useCollaboration(
   onElementRemoved: (id: string) => void,
   onPermissionChanged: (userId: string, permission: UserPermission) => void,
 ) {
-  const socketRef = useRef<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [activeUsers, setActiveUsers] = useState<User[]>([]);
   const [isOwner, setIsOwner] = useState(false);
-
-  // Mock users with different colors
-  const mockUsers = useRef([
-    {
-      id: 'simulated-user-1',
-      color: '#FF5733',
-      name: 'Jane Smith',
-      cursor: { x: 100, y: 100 },
-      isOnline: true,
-    },
-    {
-      id: 'simulated-user-2',
-      color: '#33FF57',
-      name: 'Mike Johnson',
-      cursor: { x: 200, y: 200 },
-      isOnline: true,
-    },
-    {
-      id: 'simulated-user-3',
-      color: '#3357FF',
-      name: 'Alex Brown',
-      cursor: { x: 300, y: 300 },
-      isOnline: true,
-    }
-  ]).current;
-
+  const { user } = useAuth();
+  
+  // Join a room
   useEffect(() => {
-    if (!roomId) return;
-
-    console.log(`Connecting to room: ${roomId}`);
+    if (!roomId || !user) return;
     
-    // Simulate connection
-    setIsConnected(true);
-    setIsOwner(true); // First user is the owner
+    const loadRoom = async () => {
+      try {
+        // Check if board exists
+        const { data: boardData, error: boardError } = await supabase
+          .from('boards')
+          .select('*')
+          .eq('id', roomId)
+          .single();
+        
+        if (boardError) {
+          // Board doesn't exist, create it
+          if (boardError.code === 'PGRST116') {
+            const { data: newBoard, error: createError } = await supabase
+              .from('boards')
+              .insert({
+                id: roomId,
+                name: `Room ${roomId}`,
+                created_by: user.id,
+                is_public: true
+              })
+              .select()
+              .single();
+            
+            if (createError) {
+              console.error('Error creating board:', createError);
+              toast.error('Failed to create board');
+              return;
+            }
+            
+            setIsOwner(true);
+            toast.success('Created new board');
+          } else {
+            console.error('Error fetching board:', boardError);
+            toast.error('Failed to join board');
+            return;
+          }
+        } else {
+          // Board exists, check if current user is the owner
+          setIsOwner(boardData.created_by === user.id);
+        }
+        
+        // Subscribe to presence channel for this room
+        const channel = supabase.channel(`room:${roomId}`);
+        
+        // Set up presence handlers
+        channel
+          .on('presence', { event: 'sync' }, () => {
+            const state = channel.presenceState();
+            processPresenceState(state);
+          })
+          .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+            console.log('User joined:', key, newPresences);
+            newPresences.forEach((presence: any) => {
+              const newUser: User = {
+                id: presence.user_id,
+                name: presence.username,
+                color: presence.color,
+                cursor: presence.cursor,
+                isOnline: true
+              };
+              onUserJoined(newUser);
+            });
+          })
+          .on('presence', { event: 'leave' }, ({ key, leftPresences }) => {
+            console.log('User left:', key, leftPresences);
+            leftPresences.forEach((presence: any) => {
+              onUserLeft(presence.user_id);
+            });
+          });
+          
+        // Subscribe to broadcasts for this room
+        channel
+          .on('broadcast', { event: 'cursor-position' }, (payload) => {
+            const { userId, x, y } = payload;
+            onCursorMoved(userId, x, y);
+          })
+          .on('broadcast', { event: 'add-element' }, (payload) => {
+            onElementAdded(payload.element);
+          })
+          .on('broadcast', { event: 'update-element' }, (payload) => {
+            onElementUpdated(payload.id, payload.changes);
+          })
+          .on('broadcast', { event: 'remove-element' }, (payload) => {
+            onElementRemoved(payload.id);
+          })
+          .on('broadcast', { event: 'update-permission' }, (payload) => {
+            onPermissionChanged(payload.userId, payload.permission);
+          });
+        
+        // Generate a random color for the user
+        const randomColor = `#${Math.floor(Math.random()*16777215).toString(16)}`;
+          
+        // Join the channel with the user's state
+        await channel.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track({
+              user_id: user.id,
+              username: userName,
+              color: randomColor,
+              cursor: null,
+              online_at: new Date().toISOString()
+            });
+            
+            setIsConnected(true);
+            toast.success(`Connected to room: ${roomId}`);
+          }
+        });
+        
+        // Load active users
+        loadActiveUsers(roomId);
+        
+        // Load user permissions
+        loadUserPermissions(roomId);
+        
+        // Clean up on unmount
+        return () => {
+          channel.unsubscribe();
+          setIsConnected(false);
+          setActiveUsers([]);
+        };
+      } catch (error) {
+        console.error('Error joining room:', error);
+        toast.error('Failed to join room');
+      }
+    };
     
-    // Add our simulated users
-    const simulatedUsers = mockUsers;
+    loadRoom();
+  }, [roomId, userId, userName, user, onUserJoined, onUserLeft, onCursorMoved, onElementAdded, onElementUpdated, onElementRemoved]);
+  
+  // Process presence state to get active users
+  const processPresenceState = (state: Record<string, any[]>) => {
+    const users: User[] = [];
     
-    simulatedUsers.forEach(user => {
-      setTimeout(() => {
-        onUserJoined(user);
-      }, Math.random() * 2000); // Simulate users joining at different times
+    Object.values(state).forEach((presences) => {
+      presences.forEach((presence) => {
+        users.push({
+          id: presence.user_id,
+          name: presence.username,
+          color: presence.color,
+          cursor: presence.cursor,
+          isOnline: true
+        });
+      });
     });
     
-    setActiveUsers(simulatedUsers);
-    
-    toast.success(`Connected to room: ${roomId}`);
-
-    const cursorInterval = setInterval(() => {
-      // Simulate cursor movement for users
-      simulatedUsers.forEach(user => {
-        if (Math.random() > 0.7) {
-          const x = Math.floor(Math.random() * window.innerWidth * 0.8);
-          const y = Math.floor(Math.random() * window.innerHeight * 0.8);
-          onCursorMoved(user.id, x, y);
-        }
-      });
-    }, 1000);
-
-    // Simulate occasional drawing by virtual users
-    const drawInterval = setInterval(() => {
-      if (Math.random() > 0.7) {
-        const user = simulatedUsers[Math.floor(Math.random() * simulatedUsers.length)];
-        const x = Math.floor(Math.random() * window.innerWidth * 0.8);
-        const y = Math.floor(Math.random() * window.innerHeight * 0.8);
-        
-        const tools = ['rectangle', 'ellipse', 'line', 'pencil'];
-        const randomTool = tools[Math.floor(Math.random() * tools.length)];
-        
-        const element: CanvasElement = {
-          id: uuidv4(),
-          type: randomTool as any,
-          x: x,
-          y: y,
-          width: Math.random() * 100 + 50,
-          height: Math.random() * 100 + 50,
-          fill: user.color,
-          stroke: user.color,
-          strokeWidth: Math.floor(Math.random() * 3) + 1,
-          opacity: 1,
-        };
-        
-        onElementAdded(element);
+    setActiveUsers(users);
+  };
+  
+  // Load active users for a room
+  const loadActiveUsers = async (boardId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('is_online', true);
+      
+      if (error) {
+        console.error('Error loading active users:', error);
+        return;
       }
-    }, 5000);
-
-    // Clean up
-    return () => {
-      console.log('Disconnecting from room');
-      setIsConnected(false);
-      simulatedUsers.forEach(user => {
-        onUserLeft(user.id);
-      });
-      setActiveUsers([]);
-      clearInterval(cursorInterval);
-      clearInterval(drawInterval);
-      toast.info('Disconnected from room');
-    };
-  }, [roomId, onUserJoined, onUserLeft, onCursorMoved, onElementAdded, mockUsers]);
+      
+      if (data) {
+        const users: User[] = data.map(profile => ({
+          id: profile.id,
+          name: profile.username || 'Unknown',
+          color: `#${Math.floor(Math.random()*16777215).toString(16)}`,
+          cursor: null,
+          isOnline: profile.is_online
+        }));
+        
+        // Add each user
+        users.forEach(user => {
+          if (user.id !== userId) {
+            onUserJoined(user);
+          }
+        });
+        
+        setActiveUsers(users);
+      }
+    } catch (err) {
+      console.error('Failed to load active users:', err);
+    }
+  };
+  
+  // Load user permissions for a room
+  const loadUserPermissions = async (boardId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('board_permissions')
+        .select('*')
+        .eq('board_id', boardId);
+      
+      if (error) {
+        console.error('Error loading user permissions:', error);
+        return;
+      }
+      
+      if (data) {
+        data.forEach(permission => {
+          onPermissionChanged(permission.user_id, permission.permission_level as UserPermission);
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load user permissions:', err);
+    }
+  };
 
   // Methods to broadcast changes
   const broadcastCursorPosition = useCallback((x: number, y: number) => {
-    console.log(`Broadcasting cursor position: ${x}, ${y}`);
-    // For simulation, no actual network call needed
-  }, []);
+    if (!roomId || !isConnected) return;
+    
+    supabase.channel(`room:${roomId}`).send({
+      type: 'broadcast',
+      event: 'cursor-position',
+      payload: { userId, x, y }
+    });
+    
+    // Update presence data with new cursor position
+    supabase.channel(`room:${roomId}`).track({
+      user_id: userId,
+      username: userName,
+      cursor: { x, y },
+      online_at: new Date().toISOString()
+    });
+  }, [roomId, isConnected, userId, userName]);
 
   const broadcastAddElement = useCallback((element: CanvasElement) => {
-    console.log(`Broadcasting new element: ${element.id}`);
-    // For simulation, no actual network call needed
-  }, []);
+    if (!roomId || !isConnected) return;
+    
+    supabase.channel(`room:${roomId}`).send({
+      type: 'broadcast',
+      event: 'add-element',
+      payload: { element }
+    });
+  }, [roomId, isConnected]);
 
   const broadcastUpdateElement = useCallback((id: string, changes: Partial<CanvasElement>) => {
-    console.log(`Broadcasting update to element: ${id}`);
-    // For simulation, no actual network call needed
-  }, []);
+    if (!roomId || !isConnected) return;
+    
+    supabase.channel(`room:${roomId}`).send({
+      type: 'broadcast',
+      event: 'update-element',
+      payload: { id, changes }
+    });
+  }, [roomId, isConnected]);
 
   const broadcastRemoveElement = useCallback((id: string) => {
-    console.log(`Broadcasting element removal: ${id}`);
-    // For simulation, no actual network call needed
-  }, []);
+    if (!roomId || !isConnected) return;
+    
+    supabase.channel(`room:${roomId}`).send({
+      type: 'broadcast',
+      event: 'remove-element',
+      payload: { id }
+    });
+  }, [roomId, isConnected]);
 
-  const updateUserPermission = useCallback((targetUserId: string, permission: UserPermission) => {
-    if (isOwner) {
-      onPermissionChanged(targetUserId, permission);
-      
-      // Simulate network delay
-      setTimeout(() => {
-        toast.success(`Permission for user updated to ${permission}`);
-      }, MOCK_DELAY);
-      
-      // If permission is read-only, prevent the user from adding elements in simulation
-      if (permission === 'read') {
-        const index = mockUsers.findIndex(u => u.id === targetUserId);
-        if (index !== -1) {
-          mockUsers[index].isOnline = false; // Simulate reduced activity
-          setTimeout(() => {
-            mockUsers[index].isOnline = true;
-          }, 10000); // Simulate user coming back after a while
-        }
-      }
-    } else {
+  const updateUserPermission = useCallback(async (targetUserId: string, permission: UserPermission) => {
+    if (!roomId || !isOwner || !user) {
       toast.error('Only the room owner can change permissions');
+      return;
     }
-  }, [isOwner, onPermissionChanged, mockUsers]);
+    
+    try {
+      // Check if permission exists first
+      const { data: existingPermission, error: fetchError } = await supabase
+        .from('board_permissions')
+        .select('*')
+        .eq('board_id', roomId)
+        .eq('user_id', targetUserId)
+        .maybeSingle();
+      
+      let dbError;
+      
+      if (existingPermission) {
+        // Update existing permission
+        const { error } = await supabase
+          .from('board_permissions')
+          .update({ permission_level: permission })
+          .eq('board_id', roomId)
+          .eq('user_id', targetUserId);
+          
+        dbError = error;
+      } else {
+        // Insert new permission
+        const { error } = await supabase
+          .from('board_permissions')
+          .insert({
+            board_id: roomId,
+            user_id: targetUserId,
+            permission_level: permission
+          });
+          
+        dbError = error;
+      }
+      
+      if (dbError) {
+        console.error('Error updating permission:', dbError);
+        toast.error('Failed to update permission');
+        return;
+      }
+      
+      // Broadcast the permission change
+      supabase.channel(`room:${roomId}`).send({
+        type: 'broadcast',
+        event: 'update-permission',
+        payload: { userId: targetUserId, permission }
+      });
+      
+      onPermissionChanged(targetUserId, permission);
+      toast.success(`Permission for user updated to ${permission}`);
+    } catch (err) {
+      console.error('Failed to update user permission:', err);
+      toast.error('Failed to update permission');
+    }
+  }, [roomId, isOwner, user, onPermissionChanged]);
 
   return {
     isConnected,

@@ -1,5 +1,5 @@
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { toast } from 'sonner';
 import Board from '@/components/Canvas/Board';
@@ -9,11 +9,15 @@ import Controls from '@/components/Canvas/Controls';
 import ShapesPanel from '@/components/Canvas/ShapesPanel';
 import { useCanvasState } from '@/lib/useCanvasState';
 import { useCollaboration } from '@/lib/useCollaboration';
+import { useAuth } from '@/lib/useAuth';
 import { CanvasElement, User, UserPermission } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import { LogOut } from 'lucide-react';
 
 const Index: React.FC = () => {
-  const userId = React.useRef(uuidv4()).current;
-  const userName = React.useRef(`User-${userId.substring(0, 4)}`).current;
+  const { user, signOut } = useAuth();
+  const userName = user?.email?.split('@')[0] || 'Anonymous';
+  const userId = user?.id || uuidv4();
   
   const {
     state,
@@ -92,7 +96,85 @@ const Index: React.FC = () => {
   const handleAddShape = useCallback((shapeType: string) => {
     // Logic to add a predefined shape to the canvas
     toast(`Adding ${shapeType} shape`);
-  }, []);
+    
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+    let element: Partial<CanvasElement>;
+    
+    switch (shapeType) {
+      case 'square':
+        element = {
+          type: 'rectangle',
+          x: centerX - 50,
+          y: centerY - 50,
+          width: 100,
+          height: 100,
+          fill: state.color,
+          stroke: state.color,
+          strokeWidth: state.strokeWidth,
+          opacity: 1
+        };
+        break;
+      case 'circle':
+        element = {
+          type: 'ellipse',
+          x: centerX - 50,
+          y: centerY - 50,
+          width: 100,
+          height: 100,
+          fill: state.color,
+          stroke: state.color,
+          strokeWidth: state.strokeWidth,
+          opacity: 1
+        };
+        break;
+      case 'triangle':
+        // For a triangle, we'll use a special path or shape
+        element = {
+          type: 'triangle',
+          x: centerX - 50,
+          y: centerY - 50,
+          width: 100,
+          height: 100,
+          fill: state.color,
+          stroke: state.color,
+          strokeWidth: state.strokeWidth,
+          opacity: 1
+        };
+        break;
+      case 'hexagon':
+        element = {
+          type: 'hexagon',
+          x: centerX - 50,
+          y: centerY - 50,
+          width: 100,
+          height: 100,
+          fill: state.color,
+          stroke: state.color,
+          strokeWidth: state.strokeWidth,
+          opacity: 1
+        };
+        break;
+      default:
+        element = {
+          type: 'rectangle',
+          x: centerX - 50,
+          y: centerY - 50,
+          width: 100,
+          height: 100,
+          fill: state.color,
+          stroke: state.color,
+          strokeWidth: state.strokeWidth,
+          opacity: 1
+        };
+    }
+    
+    const newElement = addElement(element);
+    
+    if (state.roomId) {
+      collaboration.broadcastAddElement(newElement);
+    }
+  }, [state.color, state.strokeWidth, state.roomId, addElement, collaboration]);
 
   const handleExport = useCallback(() => {
     if (!document.querySelector('canvas')) {
@@ -116,8 +198,28 @@ const Index: React.FC = () => {
     }
   }, []);
 
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  };
+
   return (
     <div className="h-screen w-screen overflow-hidden bg-gray-50">
+      <div className="absolute top-2 left-2 z-20">
+        <Button
+          variant="outline"
+          size="sm"
+          className="bg-white"
+          onClick={handleSignOut}
+        >
+          <LogOut className="mr-2 h-4 w-4" />
+          Logout ({userName})
+        </Button>
+      </div>
+      
       <Board
         state={state}
         updateUserCursor={updateUserCursor}
