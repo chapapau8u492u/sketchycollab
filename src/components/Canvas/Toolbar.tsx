@@ -2,7 +2,7 @@
 import React from 'react';
 import { 
   Pointer, Square, Circle, Type, 
-  ArrowRight, LineIcon, Pencil, 
+  ArrowRight, Minus, Pencil, 
   Hand, Eraser, Undo, Redo, 
   Download, Trash, Diamond
 } from "lucide-react";
@@ -34,7 +34,7 @@ const Toolbar: React.FC<ToolbarProps> = ({
     { name: 'diamond', icon: Diamond, tooltip: 'Diamond (D)', shortcut: 'D' },
     { name: 'ellipse', icon: Circle, tooltip: 'Ellipse (O)', shortcut: 'O' },
     { name: 'arrow', icon: ArrowRight, tooltip: 'Arrow (A)', shortcut: 'A' },
-    { name: 'line', icon: LineIcon, tooltip: 'Line (L)', shortcut: 'L' },
+    { name: 'line', icon: Minus, tooltip: 'Line (L)', shortcut: 'L' },
     { name: 'pencil', icon: Pencil, tooltip: 'Pencil (P)', shortcut: 'P' },
     { name: 'text', icon: Type, tooltip: 'Text (T)', shortcut: 'T' },
     { name: 'hand', icon: Hand, tooltip: 'Hand (H)', shortcut: 'H' },
