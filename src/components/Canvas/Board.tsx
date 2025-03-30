@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Canvas as FabricCanvas, Object as FabricObject, Rect, Circle, Path, IEvent, Line, Ellipse, Textbox } from 'fabric';
+import { Canvas as FabricCanvas, Object as FabricObject, Rect, Circle, Path, Line, Ellipse, Textbox, TEvent } from 'fabric';
 import { AppState, CanvasElement, Tool } from '@/lib/types';
 import { createDefaultElementForTool, isDrawingTool } from '@/lib/utils/drawing';
 import { toast } from "sonner";
@@ -19,6 +19,14 @@ interface BoardProps {
     broadcastAddElement: (element: CanvasElement) => void;
     broadcastUpdateElement: (id: string, changes: Partial<CanvasElement>) => void;
     broadcastRemoveElement: (id: string) => void;
+  };
+}
+
+// Extend FabricObject to include custom properties
+interface ExtendedFabricObject extends FabricObject {
+  data?: {
+    id: string;
+    [key: string]: any;
   };
 }
 
@@ -105,7 +113,7 @@ const Board: React.FC<BoardProps> = ({
   }, [state.tool, state.color, state.strokeWidth]);
 
   // Track mouse for collaboration
-  const handleMouseMove = useCallback((e: IEvent) => {
+  const handleMouseMove = useCallback((e: TEvent) => {
     if (!fabricRef.current || !e.pointer) return;
 
     const { x, y } = e.pointer;
@@ -117,7 +125,7 @@ const Board: React.FC<BoardProps> = ({
         // Pencil drawing is handled by fabric.js
       } else if (['line', 'arrow'].includes(state.tool)) {
         const obj = fabricRef.current.getObjects().find(
-          obj => obj.data?.id === currentElementRef.current
+          obj => (obj as ExtendedFabricObject).data?.id === currentElementRef.current
         ) as Line;
         
         if (obj) {
@@ -127,10 +135,10 @@ const Board: React.FC<BoardProps> = ({
           });
           fabricRef.current.renderAll();
         }
-      } else if (state.tool === 'rectangle' || state.tool === 'ellipse') {
+      } else if (state.tool === 'rectangle' || state.tool === 'ellipse' || state.tool === 'diamond') {
         const obj = fabricRef.current.getObjects().find(
-          obj => obj.data?.id === currentElementRef.current
-        );
+          obj => (obj as ExtendedFabricObject).data?.id === currentElementRef.current
+        ) as FabricObject;
         
         if (obj) {
           const startX = obj.left!;
@@ -151,7 +159,7 @@ const Board: React.FC<BoardProps> = ({
     }
   }, [state.tool, updateUserCursor, userId, collaboration]);
 
-  const handleMouseDown = useCallback((e: IEvent) => {
+  const handleMouseDown = useCallback((e: TEvent) => {
     if (!fabricRef.current || !e.pointer) return;
     
     const { x, y } = e.pointer;
@@ -183,6 +191,21 @@ const Board: React.FC<BoardProps> = ({
           selectable: false
         });
         fabricRef.current.add(rect);
+      } else if (state.tool === 'diamond') {
+        // For diamond, we'll use a polygon with 4 points
+        const rect = new Rect({
+          left: x,
+          top: y,
+          width: 0,
+          height: 0,
+          fill: element.fill,
+          stroke: element.stroke,
+          strokeWidth: element.strokeWidth,
+          angle: 45, // Rotate 45 degrees to make it a diamond
+          data: { id: newElement.id },
+          selectable: false
+        });
+        fabricRef.current.add(rect);
       } else if (state.tool === 'ellipse') {
         const ellipse = new Ellipse({
           left: x,
@@ -208,7 +231,7 @@ const Board: React.FC<BoardProps> = ({
         const textbox = new Textbox('Click to edit', {
           left: x,
           top: y,
-          fontSize: element.fontSize,
+          fontSize: element.fontSize || 18,
           fill: element.fill,
           width: element.width,
           data: { id: newElement.id },
@@ -217,11 +240,11 @@ const Board: React.FC<BoardProps> = ({
         fabricRef.current.add(textbox);
       }
     } else if (state.tool === 'eraser') {
-      const target = fabricRef.current.findTarget(e.e as MouseEvent, false);
-      if (target && target.data?.id) {
-        removeElement(target.data.id);
+      const target = fabricRef.current.findTarget(e.e as MouseEvent);
+      if (target && (target as ExtendedFabricObject).data?.id) {
+        removeElement((target as ExtendedFabricObject).data!.id);
         fabricRef.current.remove(target);
-        collaboration.broadcastRemoveElement(target.data.id);
+        collaboration.broadcastRemoveElement((target as ExtendedFabricObject).data!.id);
       }
     }
   }, [state.tool, state.color, state.strokeWidth, addElement, removeElement, collaboration]);
@@ -233,16 +256,16 @@ const Board: React.FC<BoardProps> = ({
     
     if (currentElementRef.current) {
       const obj = fabricRef.current.getObjects().find(
-        obj => obj.data?.id === currentElementRef.current
-      );
+        obj => (obj as ExtendedFabricObject).data?.id === currentElementRef.current
+      ) as ExtendedFabricObject;
       
       if (obj) {
         obj.set({ selectable: state.tool === 'select' });
         
         // Broadcast the created element
         const element = {
-          id: obj.data.id,
-          type: state.tool,
+          id: obj.data!.id,
+          type: state.tool as Tool,
           x: obj.left || 0,
           y: obj.top || 0,
           width: obj.width || 0,
@@ -260,10 +283,10 @@ const Board: React.FC<BoardProps> = ({
     }
   }, [state.tool, collaboration]);
 
-  const handleSelection = useCallback((e: IEvent) => {
+  const handleSelection = useCallback((e: TEvent) => {
     if (!e.selected || !e.selected.length) return;
     
-    const selected = e.selected[0];
+    const selected = e.selected[0] as ExtendedFabricObject;
     if (selected.data?.id) {
       selectElement(selected.data.id);
     }
@@ -273,10 +296,12 @@ const Board: React.FC<BoardProps> = ({
     selectElement(null);
   }, [selectElement]);
 
-  const handleObjectModified = useCallback((e: IEvent) => {
-    if (!e.target || !e.target.data?.id) return;
+  const handleObjectModified = useCallback((e: TEvent) => {
+    if (!e.target) return;
     
-    const obj = e.target;
+    const obj = e.target as ExtendedFabricObject;
+    if (!obj || !obj.data?.id) return;
+    
     const changes = {
       x: obj.left || 0,
       y: obj.top || 0,

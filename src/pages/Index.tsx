@@ -9,9 +9,12 @@ import Controls from '@/components/Canvas/Controls';
 import ShapesPanel from '@/components/Canvas/ShapesPanel';
 import { useCanvasState } from '@/lib/useCanvasState';
 import { useCollaboration } from '@/lib/useCollaboration';
-import { CanvasElement, User } from '@/lib/types';
+import { CanvasElement, User, UserPermission } from '@/lib/types';
 
 const Index: React.FC = () => {
+  const userId = React.useRef(uuidv4()).current;
+  const userName = React.useRef(`User-${userId.substring(0, 4)}`).current;
+  
   const {
     state,
     setTool,
@@ -26,17 +29,20 @@ const Index: React.FC = () => {
     addUser,
     removeUser,
     setRoomId,
+    clearCanvas,
+    undo,
+    redo,
+    setUserPermission,
   } = useCanvasState();
-
-  const userId = React.useRef(uuidv4()).current;
 
   const handleUserJoined = useCallback((user: User) => {
     addUser(user);
-    toast(`${user.name} joined`);
+    toast.success(`${user.name} joined`);
   }, [addUser]);
 
   const handleUserLeft = useCallback((userId: string) => {
     removeUser(userId);
+    toast.info(`A user left the room`);
   }, [removeUser]);
 
   const handleCursorMoved = useCallback((userId: string, x: number, y: number) => {
@@ -54,33 +60,23 @@ const Index: React.FC = () => {
   const handleElementRemoved = useCallback((id: string) => {
     removeElement(id);
   }, [removeElement]);
+  
+  const handlePermissionChanged = useCallback((userId: string, permission: UserPermission) => {
+    setUserPermission(userId, permission);
+  }, [setUserPermission]);
 
   const collaboration = useCollaboration(
     state.roomId,
     userId,
+    userName,
     handleUserJoined,
     handleUserLeft,
     handleCursorMoved,
     handleElementAdded,
     handleElementUpdated,
-    handleElementRemoved
+    handleElementRemoved,
+    handlePermissionChanged
   );
-
-  const handleUndo = useCallback(() => {
-    toast("Undo functionality - to be implemented");
-  }, []);
-
-  const handleRedo = useCallback(() => {
-    toast("Redo functionality - to be implemented");
-  }, []);
-
-  const handleClear = useCallback(() => {
-    toast("Canvas cleared");
-  }, []);
-
-  const handleExport = useCallback(() => {
-    toast("Exporting your artwork!");
-  }, []);
 
   const handleCreateRoom = useCallback(() => {
     const roomId = uuidv4().substring(0, 8);
@@ -98,6 +94,28 @@ const Index: React.FC = () => {
     toast(`Adding ${shapeType} shape`);
   }, []);
 
+  const handleExport = useCallback(() => {
+    if (!document.querySelector('canvas')) {
+      toast.error("Canvas element not found");
+      return;
+    }
+
+    try {
+      const canvas = document.querySelector('canvas') as HTMLCanvasElement;
+      const dataUrl = canvas.toDataURL('image/png');
+      
+      // Create a download link
+      const link = document.createElement('a');
+      link.download = `whiteboard-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = dataUrl;
+      link.click();
+      
+      toast.success("Exporting your artwork!");
+    } catch (error) {
+      toast.error("Failed to export canvas");
+    }
+  }, []);
+
   return (
     <div className="h-screen w-screen overflow-hidden bg-gray-50">
       <Board
@@ -113,9 +131,9 @@ const Index: React.FC = () => {
       <Toolbar
         currentTool={state.tool}
         setTool={setTool}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onClear={handleClear}
+        onUndo={undo}
+        onRedo={redo}
+        onClear={clearCanvas}
         onExport={handleExport}
       />
       
@@ -130,8 +148,13 @@ const Index: React.FC = () => {
         zoom={state.zoom}
         setZoom={setZoom}
         roomId={state.roomId}
+        users={state.users}
+        currentUserId={userId}
+        isOwner={collaboration.isOwner}
+        userPermissions={state.userPermissions}
         onCreateRoom={handleCreateRoom}
         onJoinRoom={handleJoinRoom}
+        onUpdateUserPermission={collaboration.updateUserPermission}
       />
       
       <ShapesPanel onAddShape={handleAddShape} />

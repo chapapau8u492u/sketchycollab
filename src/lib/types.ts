@@ -35,7 +35,10 @@ export type User = {
     x: number;
     y: number;
   } | null;
+  isOnline?: boolean;
 };
+
+export type UserPermission = 'read' | 'write';
 
 export type AppState = {
   elements: CanvasElement[];
@@ -46,4 +49,5 @@ export type AppState = {
   zoom: number;
   users: User[];
   roomId: string | null;
+  userPermissions: Record<string, UserPermission>;
 };

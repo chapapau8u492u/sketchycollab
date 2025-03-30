@@ -5,28 +5,44 @@ import {
   ZoomOut, 
   Share, 
   Plus, 
-  Users
+  Users,
+  UserCheck,
+  UserX,
+  Edit,
+  Eye
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
+import { User, UserPermission } from "@/lib/types";
+import { Badge } from "@/components/ui/badge";
 
 interface ControlsProps {
   zoom: number;
   setZoom: (zoom: number) => void;
   roomId: string | null;
+  users: User[];
+  currentUserId: string;
+  isOwner: boolean;
+  userPermissions: Record<string, UserPermission>;
   onCreateRoom: () => void;
   onJoinRoom: (id: string) => void;
+  onUpdateUserPermission: (userId: string, permission: UserPermission) => void;
 }
 
 const Controls: React.FC<ControlsProps> = ({
   zoom,
   setZoom,
   roomId,
+  users,
+  currentUserId,
+  isOwner,
+  userPermissions,
   onCreateRoom,
   onJoinRoom,
+  onUpdateUserPermission,
 }) => {
   const [joinInput, setJoinInput] = React.useState('');
 
@@ -49,6 +65,8 @@ const Controls: React.FC<ControlsProps> = ({
     onJoinRoom(joinInput.trim());
     setJoinInput('');
   };
+
+  const activeUsers = users.filter(user => user.id !== currentUserId);
 
   return (
     <div className="fixed bottom-4 right-4 flex flex-col gap-2 z-10">
@@ -93,23 +111,90 @@ const Controls: React.FC<ControlsProps> = ({
           <Button 
             variant="outline" 
             size="icon"
-            className="bg-white rounded-full h-10 w-10 shadow-md"
+            className="bg-white rounded-full h-10 w-10 shadow-md relative"
           >
             <Users className="h-5 w-5" />
+            {activeUsers.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                {activeUsers.length}
+              </span>
+            )}
             <span className="sr-only">Collaborate</span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent side="left" className="w-72">
+        <PopoverContent side="left" className="w-80">
           <div className="space-y-3">
-            <h3 className="text-sm font-medium">Collaborate in Real-time</h3>
+            <h3 className="text-sm font-medium flex items-center justify-between">
+              <span>Collaborate in Real-time</span>
+              {roomId && (
+                <Badge variant="outline" className="ml-2">{roomId}</Badge>
+              )}
+            </h3>
+            
             {roomId ? (
               <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Current Room</p>
-                <div className="flex items-center gap-2">
-                  <Input value={roomId} readOnly className="text-xs" />
-                  <Button size="sm" onClick={handleShareClick}>
-                    <Share className="h-4 w-4" />
+                <div className="flex items-center justify-between">
+                  <p className="text-xs text-muted-foreground">Share this room</p>
+                  <Button size="sm" onClick={handleShareClick} className="h-7">
+                    <Share className="h-3 w-3 mr-1" /> Share
                   </Button>
+                </div>
+                
+                <div className="border-t border-gray-100 my-2 pt-2">
+                  <p className="text-xs font-semibold mb-1 flex justify-between items-center">
+                    <span>Active users ({activeUsers.length})</span>
+                    {isOwner && <span className="text-xs text-muted-foreground">You are the owner</span>}
+                  </p>
+                  
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {activeUsers.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No other users in the room</p>
+                    ) : (
+                      activeUsers.map((user) => (
+                        <div key={user.id} className="flex items-center justify-between bg-gray-50 p-1 rounded-md">
+                          <div className="flex items-center gap-2">
+                            <div 
+                              className="w-3 h-3 rounded-full" 
+                              style={{ backgroundColor: user.color }}
+                            />
+                            <span className="text-xs">{user.name}</span>
+                          </div>
+                          
+                          {isOwner && (
+                            <div className="flex gap-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    size="icon"
+                                    variant={userPermissions[user.id] === 'write' ? 'default' : 'outline'} 
+                                    className="h-6 w-6"
+                                    onClick={() => onUpdateUserPermission(user.id, 'write')}
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Can edit</TooltipContent>
+                              </Tooltip>
+                              
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    size="icon"
+                                    variant={userPermissions[user.id] === 'read' ? 'default' : 'outline'} 
+                                    className="h-6 w-6"
+                                    onClick={() => onUpdateUserPermission(user.id, 'read')}
+                                  >
+                                    <Eye className="h-3 w-3" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Read only</TooltipContent>
+                              </Tooltip>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
