@@ -370,4 +370,9 @@ document.addEventListener("DOMContentLoaded", function () {
 		// Continue with app initialization even if auth check fails
 		updateAuthUI(null);
 	});
+
+	// Add window error handler to catch and log unhandled errors
+	window.addEventListener('error', function(event) {
+		console.error('Global error caught:', event.error);
+	});
 });

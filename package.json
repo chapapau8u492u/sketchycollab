@@ -9,10 +9,10 @@
     "preview": "vite preview",
     "server": "cd backend && npm run dev",
     "build:dev": "vite build --mode development"
-
   },
   "dependencies": {
     "@vitejs/plugin-react": "^4.3.4",
+    "lovable-tagger": "^1.1.8",
     "socket.io-client": "^4.7.2"
   },
   "devDependencies": {
