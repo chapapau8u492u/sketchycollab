@@ -1,3 +1,4 @@
+
 document.addEventListener("DOMContentLoaded", function () {
 	// Check if user is logged in
 	const checkAuth = async () => {
@@ -9,6 +10,9 @@ document.addEventListener("DOMContentLoaded", function () {
 				headers: {
 					Authorization: `Bearer ${token}`,
 				},
+			}).catch(err => {
+				console.log("Connection error when checking auth:", err);
+				return { ok: false };
 			});
 
 			if (response.ok) {
@@ -53,7 +57,9 @@ document.addEventListener("DOMContentLoaded", function () {
 				// Add logout handler
 				document.getElementById("logoutBtn").addEventListener("click", async () => {
 					try {
-						await fetch("/api/logout", { method: "POST" });
+						await fetch("/api/logout", { method: "POST" }).catch(err => {
+							console.log("Connection error during logout:", err);
+						});
 						localStorage.removeItem("token");
 						localStorage.removeItem("user");
 						window.location.href = "/";
@@ -144,11 +150,14 @@ document.addEventListener("DOMContentLoaded", function () {
 					startBoardingButton.textContent = "Looking for board...";
 					console.log(`Attempting to find board with code: ${roomName}`);
 					
-					const response = await fetch(`/api/boards/code/${roomName}`);
+					const response = await fetch(`/api/boards/code/${roomName}`).catch(err => {
+						console.log("Connection error when finding board:", err);
+						return { ok: false };
+					});
 					
 					// Reset button state
 					startBoardingButton.disabled = false;
-					startBoardingButton.textContent = "Start";
+					startBoardingButton.textContent = "Start Boarding";
 					
 					if (response.ok) {
 						const data = await response.json();
@@ -160,8 +169,6 @@ document.addEventListener("DOMContentLoaded", function () {
 						return;
 					} else {
 						// If server responds but board not found, show error and STOP
-						const data = await response.json();
-						console.error(`Error: ${data.error}`);
 						alert(`Board with code ${roomName} was not found. Please try a different code or enter a name for a new board.`);
 						return; // Stop execution here - don't create a new board
 					}
@@ -169,7 +176,7 @@ document.addEventListener("DOMContentLoaded", function () {
 					console.error("Error finding board by code:", error);
 					alert("Error connecting to server. Please try again.");
 					startBoardingButton.disabled = false;
-					startBoardingButton.textContent = "Start";
+					startBoardingButton.textContent = "Start Boarding";
 					return;
 				}
 			}
@@ -192,10 +199,13 @@ document.addEventListener("DOMContentLoaded", function () {
 							Authorization: `Bearer ${localStorage.getItem("token")}`,
 						},
 						body: JSON.stringify({ name: roomName }),
+					}).catch(err => {
+						console.log("Connection error when creating board:", err);
+						return { ok: false };
 					});
 
 					startBoardingButton.disabled = false;
-					startBoardingButton.textContent = "Start";
+					startBoardingButton.textContent = "Start Boarding";
 
 					if (response.ok) {
 						const data = await response.json();
@@ -209,7 +219,7 @@ document.addEventListener("DOMContentLoaded", function () {
 					console.error("Board creation error:", error);
 					alert("Failed to create board. Please try again.");
 					startBoardingButton.disabled = false;
-					startBoardingButton.textContent = "Start";
+					startBoardingButton.textContent = "Start Boarding";
 				}
 			} else {
 				// Just redirect to a new room if not logged in
@@ -236,7 +246,14 @@ document.addEventListener("DOMContentLoaded", function () {
 						"Content-Type": "application/json",
 					},
 					body: JSON.stringify({ email, password }),
+				}).catch(err => {
+					console.log("Connection error during login:", err);
+					return { ok: false };
 				});
+
+				if (!response.ok) {
+					throw new Error("Login request failed");
+				}
 
 				const data = await response.json();
 
@@ -308,7 +325,14 @@ document.addEventListener("DOMContentLoaded", function () {
 						"Content-Type": "application/json",
 					},
 					body: JSON.stringify({ fullName, email, password }),
+				}).catch(err => {
+					console.log("Connection error during registration:", err);
+					return { ok: false };
 				});
+
+				if (!response.ok) {
+					throw new Error("Registration request failed");
+				}
 
 				const data = await response.json();
 
@@ -341,5 +365,9 @@ document.addEventListener("DOMContentLoaded", function () {
 			localStorage.setItem("user", JSON.stringify(user));
 		}
 		updateAuthUI(user);
+	}).catch(error => {
+		console.error("Error during auth check:", error);
+		// Continue with app initialization even if auth check fails
+		updateAuthUI(null);
 	});
 });
