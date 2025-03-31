@@ -1,4 +1,3 @@
-
 {
   "name": "collaboard",
   "private": true,
@@ -11,6 +10,7 @@
     "server": "cd backend && npm run dev"
   },
   "dependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
     "socket.io-client": "^4.7.2"
   },
   "devDependencies": {
