@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -11,23 +12,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <script src="/socket.io/socket.io.js"></script>
   <script type="module" src="board.js"></script>
-  <style>
-    /* Eraser cursor style */
-    canvas.eraser-active {
-      cursor: none;
-    }
-
-    #eraserCursor {
-      position: fixed;
-      pointer-events: none;
-      border: 1px solid rgba(0, 0, 0, 0.5);
-      border-radius: 50%;
-      background-color: rgba(255, 255, 255, 0.3);
-      display: none;
-      z-index: 1000;
-      transform: translate(-50%, -50%);
-    }
-  </style>
 </head>
 
 <body class="board-page">
@@ -58,7 +42,6 @@
     </div>
     <div class="toolbar">
       <div class="tool-group drawing-tools">
-        <span class="tool-group-label">Draw</span>
         <div class="tool-buttons">
           <button class="tool-btn active" data-tool="brush" title="Brush">
             <i class="fas fa-paint-brush"></i>
@@ -82,10 +65,8 @@
       </div>
 
       <div class="tool-group style-tools">
-        <span class="tool-group-label">Style</span>
-        <div class=" style-controls">
+        <div class="style-controls">
           <div class="size-control">
-            <label for="brushSize">Size:</label>
             <select id="brushSize" class="styled-select">
               <option value="2">Small</option>
               <option value="5" selected>Medium</option>
@@ -94,14 +75,12 @@
             </select>
           </div>
           <div class="color-control">
-            <label for="colorPicker">Color:</label>
             <input type="color" id="colorPicker" value="#000000" title="Color">
           </div>
         </div>
       </div>
 
       <div class="tool-group action-tools">
-        <span class="tool-group-label">Actions</span>
         <div class="action-buttons">
           <button class="tool-btn" id="undoBtn" title="Undo">
             <i class="fas fa-undo"></i>
@@ -114,7 +93,6 @@
           </button>
         </div>
       </div>
-
     </div>
   </header>
 
@@ -122,6 +100,7 @@
     <canvas id="whiteboard"></canvas>
   </main>
 
+  <!-- Share modal -->
   <div class="modal" id="shareModal">
     <div class="modal-content">
       <div class="modal-header">
@@ -146,19 +125,6 @@
             </button>
           </div>
         </div>
-
-        <div class="share-options">
-          <div class="option-group">
-            <div class="option">
-              <input type="checkbox" id="enablePassword">
-              <label for="enablePassword">Protect with password</label>
-            </div>
-            <div class="password-input" style="display: none;">
-              <input type="password" id="boardPassword" placeholder="Enter password">
-              <button class="btn btn-primary" id="setPasswordBtn">Set Password</button>
-            </div>
-          </div>
-        </div>
       </div>
       <div class="modal-footer">
         <button class="btn close-btn2 btn-secondary close-modal">Close</button>
@@ -166,6 +132,7 @@
     </div>
   </div>
 
+  <!-- Users panel -->
   <div class="users-panel" id="usersPanel">
     <div class="panel-header">
       <h3><i class="fas fa-users"></i> Collaborators</h3>
@@ -177,15 +144,11 @@
       <div class="users-list" id="usersList">
         <!-- Users will be added dynamically -->
       </div>
-      <div class="panel-actions">
-        <button class="btn btn-sm" id="inviteUser">
-          <i class="fas fa-user-plus"></i> Invite
-        </button>
-      </div>
     </div>
   </div>
 
-  <div class="toast-container" id="toastContainer" style="pointer-events: none;">
+  <!-- Toast notifications -->
+  <div class="toast-container" id="toastContainer">
     <div class="toast" id="toast">
       <div class="toast-content">
         <i class="toast-icon fas fa-info-circle"></i>
@@ -197,6 +160,7 @@
     </div>
   </div>
 
+  <!-- Tool settings panels -->
   <div id="brushSettings" class="brush-settings" style="display: none;">
     <h3>Brush Settings</h3>
     <label for="brushColor">Brush Color:</label>
@@ -204,70 +168,16 @@
 
     <label for="brushSizeSlider">Brush Size:</label>
     <input type="range" id="brushSizeSlider" min="1" max="100" value="5">
-
-    <!-- <label for="brushOpacity">Opacity:</label> -->
-    <!-- <input type="range" id="brushOpacity" min="0" max="100" value="100"> -->
   </div>
 
   <div id="eraserSettings" class="eraser-settings" style="display: none;">
     <h3>Eraser Settings</h3>
     <label for="eraserSize">Eraser Size:</label>
     <input type="range" id="eraserSize" min="5" max="70" value="30" class="size-slider">
-    <!-- <div id="eraserSizeControl"></div> -->
   </div>
 
-  <!-- NO NEED -->
-  <!-- <div id="lineSettings" class="tool-settings" style="display: none;">
-    <h3>Line Settings</h3>
-    <label for="lineColor">Line Color:</label>
-    <input type="color" id="lineColor" value="#000000">
-    <label for="lineSize">Line Size:</label>
-    <input type="range" id="lineSize" min="1" max="20" value="2">
-    <label for="lineOpacity">Opacity:</label>
-    <input type="range" id="lineOpacity" min="0" max="100" value="100">
-  </div>
-
-  <div id="rectangleSettings" class="tool-settings" style="display: none;">
-    <h3>Rectangle Settings</h3>
-    <label for="rectangleColor">Rectangle Color:</label>
-    <input type="color" id="rectangleColor" value="#000000">
-    <label for="rectangleSize">Line Size:</label>
-    <input type="range" id="rectangleSize" min="1" max="20" value="2">
-    <label for="rectangleOpacity">Opacity:</label>
-    <input type="range" id="rectangleOpacity" min="0" max="100" value="100">
-  </div>
-
-  <div id="circleSettings" class="tool-settings" style="display: none;">
-    <h3>Circle Settings</h3>
-    <label for="circleColor">Circle Color:</label>
-    <input type="color" id="circleColor" value="#000000">
-    <label for="circleSize">Line Size:</label>
-    <input type="range" id="circleSize" min="1" max="20" value="2">
-    <label for="circleOpacity">Opacity:</label>
-    <input type="range" id="circleOpacity" min="0" max="100" value="100">
-  </div> -->
-
-  <!-- Add eraser cursor element -->
-  <div id="eraserCursor" style="
-    position: fixed;
-    pointer-events: none;
-    border: 2px solid rgba(0,0,0,0.8);
-    border-radius: 50%;
-    background-color: rgba(255, 255, 255, 0.3);
-    display: none;
-    z-index: 1000;
-    transform: translate(-50%, -50%);
-    transition: width 0.1s, height 0.1s;
-    box-shadow: 0 0 5px rgba(0,0,0,0.2);
-  "></div>
-
-  <!-- Remove all the script content and just keep this initialization script -->
-  <script>
-    // Wait for board.js to load and initialize
-    document.addEventListener('DOMContentLoaded', () => {
-      // The initialization will be handled by board.js
-    });
-  </script>
+  <!-- Eraser cursor -->
+  <div id="eraserCursor"></div>
 </body>
 
 </html>
