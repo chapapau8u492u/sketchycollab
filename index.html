@@ -11,10 +11,12 @@
 </head>
 <body>
   <div id="app"></div>
-  <script type="module" src="/frontend/script.js"></script>
+  <script type="module" src="/src/main.jsx"></script>
   <script>
-    // Redirect to frontend/index.html
-    window.location.href = '/frontend/index.html';
+    // Check if we're on the root path and redirect to frontend if needed
+    if (window.location.pathname === '/') {
+      window.location.href = '/frontend/index.html';
+    }
   </script>
 </body>
 </html>
